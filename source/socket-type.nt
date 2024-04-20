@@ -1,0 +1,16 @@
+data socket-type {
+| SOCK_STREAM
+| SOCK_DGRAM
+| SOCK_RAW
+}
+
+define decode(t: socket-type): int {
+  match t {
+  | SOCK_STREAM =>
+    1
+  | SOCK_DGRAM =>
+    2
+  | SOCK_RAW =>
+    3
+  }
+}
