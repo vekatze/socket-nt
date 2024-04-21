@@ -4,6 +4,7 @@ import {
   core.external {free, malloc},
   core.int.text {show},
   core.memory {store-int},
+  core.text {unsafe-get-content-pointer},
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
 }
@@ -11,6 +12,7 @@ import {
 foreign {
   socket(int, int, int): int,
   setsockopt(int, int, int, pointer, int): int,
+  inet_addr(pointer): int,
   bind(int, pointer, int): int,
   listen(int, int): int,
   accept(int, pointer, pointer): int,
@@ -70,17 +72,25 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: int)
   }
 }
 
-define _bind-socket(af: address-family, s: descriptor, port: int16): system(unit) {
+define _inet-addr(address: &text): int {
+  let addr'' = core.text.append(address, "\0") in
+  let result2 on addr'' = magic external inet_addr(unsafe-get-content-pointer(addr'')) in
+  let _ = addr'' in
+  result2
+}
+
+define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16): system(unit) {
   introspect os {
   | darwin =>
     match af {
     | AF.AF_INET =>
       let server-addr = malloc(sockaddr-in-size) in
       let port': int16 = magic external htons(port) in
-      let in-addr-any: int32 = 0 in
+      let in-addr = _inet-addr(address) in
+      magic store(int8, sockaddr-in-size, server-addr);
       magic store(int8, AF.decode(af), add-int(server-addr, 1));
       magic store(int16, port', add-int(server-addr, 2));
-      magic store(int32, in-addr-any, add-int(server-addr, 4));
+      magic store(int32, in-addr, add-int(server-addr, 4));
       let result = magic external bind(s, server-addr, sockaddr-in-size) in
       free(server-addr);
       if lt-int(result, 0) {
@@ -94,10 +104,10 @@ define _bind-socket(af: address-family, s: descriptor, port: int16): system(unit
     | AF.AF_INET =>
       let server-addr = malloc(sockaddr-in-size) in
       let port': int16 = magic external htons(port) in
-      let in-addr-any: int32 = 0 in
+      let in-addr = _inet-addr(address) in
       magic store(int16, AF.decode(af), add-int(server-addr, 0));
       magic store(int16, port', add-int(server-addr, 2));
-      magic store(int32, in-addr-any, add-int(server-addr, 4));
+      magic store(int32, in-addr, add-int(server-addr, 4));
       let result = magic external bind(s, server-addr, sockaddr-in-size) in
       free(server-addr);
       if lt-int(result, 0) {
@@ -147,6 +157,7 @@ define _create-server-socket(
   comm-type: socket-type,
   reuse-socket: bool,
   protocol: int,
+  address: &text,
   port: int16,
   connection-queue-size: int,
 ): system(descriptor) {
@@ -158,7 +169,7 @@ define _create-server-socket(
       Pass(Unit)
     }
   in
-  try _ = _bind-socket(af, s, port) in
+  try _ = _bind-socket(af, s, address, port) in
   try _ = _listen-socket(s, connection-queue-size) in
   Pass(s)
 }
@@ -180,15 +191,16 @@ data config {
     reuse-socket: bool,
     protocol: int,
     port: int16,
+    address: &text,
     backlog: int,
     interpreter: (text) -> text,
   )
 }
 
 inline start-server(c: config): system(unit) {
-  let Config of {family, comm-type, reuse-socket, protocol, port, backlog, interpreter} = c in
-  try s = _create-server-socket(family, comm-type, reuse-socket, protocol, port, backlog) in
-  printf("listening port {}\n", [show(magic cast(_, _, port))]);
+  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter} = c in
+  try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
+  printf("listening {}:{}\n", [*address, show(magic cast(_, _, port))]);
   _server-loop(s, interpreter)
 }
 
@@ -200,6 +212,7 @@ define zen(): unit {
       reuse-socket = True,
       protocol = 0,
       port = 8080,
+      address = "0.0.0.0",
       backlog = 128,
       interpreter = {
         function (t: text): text {
