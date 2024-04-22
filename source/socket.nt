@@ -1,10 +1,10 @@
 import {
   AF,
   core.errno {Errno, report-system-error, system},
-  core.external {free, malloc},
   core.int.text {show},
   core.memory {store-int},
   core.text {unsafe-get-content-pointer},
+  core.word,
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
 }
@@ -45,11 +45,10 @@ constant SO_REUSEADDR: int {
 }
 
 define _make-socket-reusable(s: descriptor): system(unit) {
-  let option-size = 8 in
-  let enable = malloc(option-size) in
+  let option-size: int = core.word.size in
+  let enable = magic alloca(int, 1) in
   store-int(1, enable);
   let result: int = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
-  free(enable);
   if eq-int(result, 0) {
     Pass(Unit)
   } else {
@@ -84,7 +83,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   | darwin =>
     match af {
     | AF.AF_INET =>
-      let server-addr = malloc(sockaddr-in-size) in
+      let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
       magic store(int8, sockaddr-in-size, server-addr);
@@ -92,7 +91,6 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       magic store(int16, port', add-int(server-addr, 2));
       magic store(int32, in-addr, add-int(server-addr, 4));
       let result = magic external bind(s, server-addr, sockaddr-in-size) in
-      free(server-addr);
       if lt-int(result, 0) {
         report-system-error()
       } else {
@@ -102,14 +100,13 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   | linux =>
     match af {
     | AF.AF_INET =>
-      let server-addr = malloc(sockaddr-in-size) in
+      let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
       magic store(int16, AF.decode(af), add-int(server-addr, 0));
       magic store(int16, port', add-int(server-addr, 2));
       magic store(int32, in-addr, add-int(server-addr, 4));
       let result = magic external bind(s, server-addr, sockaddr-in-size) in
-      free(server-addr);
       if lt-int(result, 0) {
         report-system-error()
       } else {
@@ -129,14 +126,12 @@ define _listen-socket(s: descriptor, backlog: int): system(unit) {
 }
 
 inline _process-request(s: descriptor, f: (text) -> text): system(unit) {
-  let client-addr = malloc(sockaddr-in-size) in
-  let address = malloc(4) in
+  let client-addr = magic alloca(int8, 16) in
+  let address = magic alloca(int8, 4) in
   magic store(int32, sockaddr-in-size, address);
   let client-fd = magic external accept(s, client-addr, address) in
   let client-len: int = magic load(int32, address) in
   let _ = client-len in
-  free(client-addr);
-  free(address);
   if lt-int(client-fd, 0) {
     report-system-error()
   } else {
