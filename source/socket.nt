@@ -1,9 +1,8 @@
 import {
   AF,
   core.errno {Errno, report-system-error, system},
-  core.int.text {show},
   core.memory {store-int},
-  core.text {unsafe-get-content-pointer},
+  core.text {_get-content-pointer},
   core.word,
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
@@ -73,7 +72,7 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: int)
 
 define _inet-addr(address: &text): int {
   let addr'' = core.text.append(address, "\0") in
-  let result2 on addr'' = magic external inet_addr(unsafe-get-content-pointer(addr'')) in
+  let result2 on addr'' = magic external inet_addr(_get-content-pointer(addr'')) in
   let _ = addr'' in
   result2
 }
@@ -195,7 +194,7 @@ data config {
 inline start-server(c: config): system(unit) {
   let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter} = c in
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
-  printf("listening {}:{}\n", [*address, show(magic cast(_, _, port))]);
+  printf("listening {}:{}\n", [*address, %ld(magic cast(_, _, port))]);
   _server-loop(s, interpreter)
 }
 
@@ -219,7 +218,7 @@ define zen(): unit {
   in
   match start-server(server-config) {
   | Fail(Errno(i)) =>
-    printf("failed to start a server. error code: {}\n", [show(i)])
+    printf("failed to start a server. error code: {}\n", [%ld(i)])
   | Pass(_) =>
     Unit
   }
