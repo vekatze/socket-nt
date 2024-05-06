@@ -2,7 +2,7 @@ import {
   AF,
   core.errno {Errno, report-system-error, system},
   core.memory {store-int},
-  core.text {_get-content-pointer},
+  core.text {_get-content-pointer, format, text-byte-length},
   core.word,
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
@@ -124,7 +124,7 @@ define _listen-socket(s: descriptor, backlog: int): system(unit) {
   }
 }
 
-inline _process-request(s: descriptor, f: (text) -> text): system(unit) {
+inline _process-request(ch: &channel(flow(system(unit))), s: descriptor, f: (text) -> text): system(unit) {
   let client-addr = magic alloca(int8, 16) in
   let address = magic alloca(int8, 4) in
   magic store(int32, sockaddr-in-size, address);
@@ -135,13 +135,19 @@ inline _process-request(s: descriptor, f: (text) -> text): system(unit) {
     report-system-error()
   } else {
     let fd = magic cast(int, descriptor, client-fd) in
-    try request = read(fd) in
-    let response = f(request) in
-    let _ on response =
-      try _ = write(response, fd) in
-      close(fd)
+    let some-flow: flow(system(unit)) =
+      detach {
+        try request = read(fd) in
+        let response = f(request) in
+        let _ on response =
+          try _ = write(response, fd) in
+          close(fd)
+        in
+        let _ = response in
+        Pass(Unit)
+      }
     in
-    let _ = response in
+    send(ch, some-flow);
     Pass(Unit)
   }
 }
@@ -168,10 +174,16 @@ define _create-server-socket(
   Pass(s)
 }
 
-inline _server-loop(s: descriptor, f: (text) -> text): system(unit) {
+define _consumer-loop<a>(q: &channel(flow(system(unit)))): system(a) {
+  let val-flow = receive(q) in
+  try _ = attach {val-flow} in
+  _consumer-loop(q)
+}
+
+inline _server-loop(ch: &channel(flow(system(unit))), s: descriptor, f: (text) -> text): system(unit) {
   let loop =
     define self() {
-      try _ = _process-request(s, f) in
+      try _ = _process-request(ch, s, f) in
       self()
     }
   in
@@ -195,7 +207,14 @@ inline start-server(c: config): system(unit) {
   let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter} = c in
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
   printf("listening {}:{}\n", [*address, %ld(magic cast(_, _, port))]);
-  _server-loop(s, interpreter)
+  let ch = new-channel() in
+  let result on ch =
+    let fl = detach {_consumer-loop(ch)} in
+    try _ = _server-loop(ch, s, interpreter) in
+    attach {fl}
+  in
+  let _ = ch in
+  result
 }
 
 define zen(): unit {
@@ -210,8 +229,11 @@ define zen(): unit {
       backlog = 128,
       interpreter = {
         function (t: text): text {
+          let len on t = text-byte-length(t) in
+          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [%ld(len)]) in
+          let body-len on body = text-byte-length(body) in
           printf("request:\n{}\n", [t]);
-          *"HTTP/1.1 200 OK\r\nContent-Length: 24\r\n\r\n{\"key\": \"Hello, world!\"}"
+          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [%ld(body-len), body])
         }
       },
     }
