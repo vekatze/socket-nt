@@ -124,7 +124,22 @@ define _listen-socket(s: descriptor, backlog: int): system(unit) {
   }
 }
 
-inline _process-request(ch: &channel(flow(system(unit))), s: descriptor, f: (text) -> text): system(unit) {
+inline _consumer<a>(ch: &channel(descriptor), request-interpreter: (text) -> text): system(a) {
+  let f =
+    define loop(): system(a) {
+      let fd = receive(ch) in
+      try request = read(fd) in
+      let response = request-interpreter(request) in
+      let _ on response = write(response, fd) in
+      try _ = close(fd) in
+      let _ = response in
+      loop()
+    }
+  in
+  f()
+}
+
+inline _process-request(ch: &channel(descriptor), s: descriptor): system(unit) {
   let client-addr = magic alloca(int8, 16) in
   let address = magic alloca(int8, 4) in
   magic store(int32, sockaddr-in-size, address);
@@ -135,19 +150,7 @@ inline _process-request(ch: &channel(flow(system(unit))), s: descriptor, f: (tex
     report-system-error()
   } else {
     let fd = magic cast(int, descriptor, client-fd) in
-    let some-flow: flow(system(unit)) =
-      detach {
-        try request = read(fd) in
-        let response = f(request) in
-        let _ on response =
-          try _ = write(response, fd) in
-          close(fd)
-        in
-        let _ = response in
-        Pass(Unit)
-      }
-    in
-    send(ch, some-flow);
+    send(ch, fd);
     Pass(Unit)
   }
 }
@@ -180,14 +183,47 @@ define _consumer-loop<a>(q: &channel(flow(system(unit)))): system(a) {
   _consumer-loop(q)
 }
 
-inline _server-loop(ch: &channel(flow(system(unit))), s: descriptor, f: (text) -> text): system(unit) {
-  let loop =
-    define self() {
-      try _ = _process-request(ch, s, f) in
-      self()
+define _wait-all<a>(ys: list(flow(a))): unit {
+  match ys {
+  | Nil =>
+    Unit
+  | Cons(z, zs) =>
+    let _ = attach {z} in
+    _wait-all(zs)
+  }
+}
+
+inline _create-consumers(ch: &channel(descriptor), n: int, f: (text) -> text): list(flow(system(unit))) {
+  let f =
+    define self(n: int): list(flow(system(unit))) {
+      if eq-int(n, 0) {
+        []
+      } else {
+        let consumer = detach {_consumer(ch, f)} in
+        let consumers = self(sub-int(n, 1)) in
+        Cons(consumer, consumers)
+      }
     }
   in
-  loop()
+  f(n)
+}
+
+inline _server-loop(num-of-threads: int, s: descriptor, f: (text) -> text): system(unit) {
+  let ch = new-channel() in
+  let result on ch =
+    let consumers = _create-consumers(ch, num-of-threads, f) in
+    let producer =
+      define self(): system(unit) {
+        try _ = _process-request(ch, s) in
+        self()
+      }
+    in
+    try _ = producer() in
+    // unreachable
+    Pass(_wait-all(consumers))
+  in
+  let _ = ch in
+  result
 }
 
 data config {
@@ -199,22 +235,16 @@ data config {
     port: int16,
     address: &text,
     backlog: int,
+    threads: int,
     interpreter: (text) -> text,
   )
 }
 
 inline start-server(c: config): system(unit) {
-  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter} = c in
+  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c in
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
   printf("listening {}:{}\n", [*address, %ld(magic cast(_, _, port))]);
-  let ch = new-channel() in
-  let result on ch =
-    let fl = detach {_consumer-loop(ch)} in
-    try _ = _server-loop(ch, s, interpreter) in
-    attach {fl}
-  in
-  let _ = ch in
-  result
+  _server-loop(threads, s, interpreter)
 }
 
 define zen(): unit {
@@ -227,6 +257,7 @@ define zen(): unit {
       port = 8080,
       address = "0.0.0.0",
       backlog = 128,
+      threads = 10,
       interpreter = {
         function (t: text): text {
           let len on t = text-byte-length(t) in
