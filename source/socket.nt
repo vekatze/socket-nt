@@ -1,8 +1,8 @@
 import {
   AF,
   core.errno {Errno, report-system-error, system},
-  core.memory {store-int},
-  core.text {_get-content-pointer, format, text-byte-length},
+  core.memory {load-int16, store-int},
+  core.text {_from-c-string, _get-content-pointer, format, text-byte-length},
   core.word,
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
@@ -11,11 +11,14 @@ import {
 foreign {
   socket(int, int, int): int,
   setsockopt(int, int, int, pointer, int): int,
+  getsockopt(int, int, int, pointer, pointer): int,
   inet_addr(pointer): int,
+  inet_ntop(int, pointer, pointer, int): pointer,
   bind(int, pointer, int): int,
   listen(int, int): int,
   accept(int, pointer, pointer): int,
   htons(int16): int16,
+  ntohs(int16): int16,
   close(int): int,
   snprintf(pointer, int, pointer): int,
   sprintf(pointer, pointer): int,
@@ -43,11 +46,17 @@ constant SO_REUSEADDR: int {
   }
 }
 
+constant INET_ADDRSTRLEN: int {
+  16
+}
+
 define _make-socket-reusable(s: descriptor): system(unit) {
   let option-size: int = core.word.size in
   let enable = magic alloca(int, 1) in
   store-int(1, enable);
   let result: int = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
+  let so-reuse-port: int = 512 in
+  let _: int = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
   if eq-int(result, 0) {
     Pass(Unit)
   } else {
@@ -124,12 +133,27 @@ define _listen-socket(s: descriptor, backlog: int): system(unit) {
   }
 }
 
-inline _consumer<a>(ch: &channel(descriptor), request-interpreter: (text) -> text): system(a) {
+data socket-address {
+| Socket-Address(
+    ip-address: text,
+    port: int16,
+  )
+}
+
+data client-summary {
+| Client-Summary(
+    fd: descriptor,
+    address: socket-address,
+  )
+}
+
+inline _consumer<a>(ch: &channel(client-summary), request-interpreter: (socket-address, text) -> text): system(a) {
   let f =
     define loop(): system(a) {
-      let fd = receive(ch) in
+      let summary = receive(ch) in
+      let Client-Summary of {fd, address} = summary in
       try request = read(fd) in
-      let response = request-interpreter(request) in
+      let response = request-interpreter(address, request) in
       let _ on response = write(response, fd) in
       try _ = close(fd) in
       let _ = response in
@@ -139,7 +163,7 @@ inline _consumer<a>(ch: &channel(descriptor), request-interpreter: (text) -> tex
   f()
 }
 
-inline _process-request(ch: &channel(descriptor), s: descriptor): system(unit) {
+inline _process-request(ch: &channel(client-summary), s: descriptor): system(unit) {
   let client-addr = magic alloca(int8, 16) in
   let address = magic alloca(int8, 4) in
   magic store(int32, sockaddr-in-size, address);
@@ -149,8 +173,14 @@ inline _process-request(ch: &channel(descriptor), s: descriptor): system(unit) {
   if lt-int(client-fd, 0) {
     report-system-error()
   } else {
+    let client-ip-ptr = magic alloca(int16, 1) in
+    magic external inet_ntop(AF.decode(AF.AF_INET), add-int(client-addr, 4), client-ip-ptr, INET_ADDRSTRLEN);
+    let client-ip-address = _from-c-string(client-ip-ptr) in
+    let client-port = load-int16(add-int(client-addr, 2)) in
+    let client-port': int16 = magic external ntohs(client-port) in
     let fd = magic cast(int, descriptor, client-fd) in
-    send(ch, fd);
+    let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
+    send(ch, summary);
     Pass(Unit)
   }
 }
@@ -193,7 +223,11 @@ define _wait-all<a>(ys: list(flow(a))): unit {
   }
 }
 
-inline _create-consumers(ch: &channel(descriptor), n: int, f: (text) -> text): list(flow(system(unit))) {
+inline _create-consumers(
+  ch: &channel(client-summary),
+  n: int,
+  f: (socket-address, text) -> text,
+): list(flow(system(unit))) {
   let f =
     define self(n: int): list(flow(system(unit))) {
       if eq-int(n, 0) {
@@ -208,7 +242,7 @@ inline _create-consumers(ch: &channel(descriptor), n: int, f: (text) -> text): l
   f(n)
 }
 
-inline _server-loop(num-of-threads: int, s: descriptor, f: (text) -> text): system(unit) {
+inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, text) -> text): system(unit) {
   let ch = new-channel() in
   let result on ch =
     let consumers = _create-consumers(ch, num-of-threads, f) in
@@ -236,7 +270,7 @@ data config {
     address: &text,
     backlog: int,
     threads: int,
-    interpreter: (text) -> text,
+    interpreter: (socket-address, text) -> text,
   )
 }
 
@@ -259,7 +293,9 @@ define zen(): unit {
       backlog = 128,
       threads = 10,
       interpreter = {
-        function (t: text): text {
+        function (address: socket-address, t: text): text {
+          let Socket-Address of {ip-address, port} = address in
+          printf("client: {}:{}\n", [ip-address, %ld(magic cast(_, _, port))]);
           let len on t = text-byte-length(t) in
           let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [%ld(len)]) in
           let body-len on body = text-byte-length(body) in
