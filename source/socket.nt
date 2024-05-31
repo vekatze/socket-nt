@@ -58,7 +58,7 @@ define _make-socket-reusable(s: descriptor): system(unit) {
   let so-reuse-port: int = 512 in
   let _: int = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
   if eq-int(result, 0) {
-    Pass(Unit)
+    Right(Unit)
   } else {
     report-system-error()
   }
@@ -75,7 +75,7 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: int)
   if lt-int(d, 0) {
     report-system-error()
   } else {
-    Pass(magic cast(int, descriptor, d))
+    Right(magic cast(int, descriptor, d))
   }
 }
 
@@ -102,7 +102,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       if lt-int(result, 0) {
         report-system-error()
       } else {
-        Pass(Unit)
+        Right(Unit)
       }
     }
   | linux =>
@@ -118,7 +118,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       if lt-int(result, 0) {
         report-system-error()
       } else {
-        Pass(Unit)
+        Right(Unit)
       }
     }
   }
@@ -129,7 +129,7 @@ define _listen-socket(s: descriptor, backlog: int): system(unit) {
   if lt-int(result, 0) {
     report-system-error()
   } else {
-    Pass(Unit)
+    Right(Unit)
   }
 }
 
@@ -181,7 +181,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
     let fd = magic cast(int, descriptor, client-fd) in
     let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
     send(ch, summary);
-    Pass(Unit)
+    Right(Unit)
   }
 }
 
@@ -199,21 +199,21 @@ define _create-server-socket(
     if reuse-socket {
       _make-socket-reusable(s)
     } else {
-      Pass(Unit)
+      Right(Unit)
     }
   in
   try _ = _bind-socket(af, s, address, port) in
   try _ = _listen-socket(s, connection-queue-size) in
-  Pass(s)
+  Right(s)
 }
 
-define _consumer-loop<a>(q: &channel(flow(system(unit)))): system(a) {
-  let val-flow = receive(q) in
-  try _ = attach {val-flow} in
+define _consumer-loop<a>(q: &channel(thread(system(unit)))): system(a) {
+  let val-thread = receive(q) in
+  try _ = attach {val-thread} in
   _consumer-loop(q)
 }
 
-define _wait-all<a>(ys: list(flow(a))): unit {
+define _wait-all<a>(ys: list(thread(a))): unit {
   match ys {
   | Nil =>
     Unit
@@ -227,9 +227,9 @@ inline _create-consumers(
   ch: &channel(client-summary),
   n: int,
   f: (socket-address, text) -> text,
-): list(flow(system(unit))) {
+): list(thread(system(unit))) {
   let f =
-    define self(n: int): list(flow(system(unit))) {
+    define self(n: int): list(thread(system(unit))) {
       if eq-int(n, 0) {
         []
       } else {
@@ -254,7 +254,7 @@ inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, text
     in
     try _ = producer() in
     // unreachable
-    Pass(_wait-all(consumers))
+    Right(_wait-all(consumers))
   in
   let _ = ch in
   result
@@ -306,9 +306,9 @@ define zen(): unit {
     }
   in
   match start-server(server-config) {
-  | Fail(Errno(i)) =>
+  | Left(Errno(i)) =>
     printf("failed to start a server. error code: {}\n", [%ld(i)])
-  | Pass(_) =>
+  | Right(_) =>
     Unit
   }
 }
