@@ -80,10 +80,8 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: int)
 }
 
 define _inet-addr(address: &text): int {
-  let addr'' = core.text.append(address, "\0") in
-  let result2 on addr'' = magic external inet_addr(_get-content-pointer(addr'')) in
-  let _ = addr'' in
-  result2
+  pin addr'' = core.text.append(address, "\0") in
+  magic external inet_addr(_get-content-pointer(addr''))
 }
 
 define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16): system(unit) {
