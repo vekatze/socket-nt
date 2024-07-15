@@ -150,7 +150,7 @@ inline _consumer<a>(ch: &channel(client-summary), request-interpreter: (socket-a
     define loop(): system(a) {
       let summary = receive(ch) in
       let Client-Summary of {fd, address} = summary in
-      try request = read(fd) in
+      try request = read(fd, 1024) in
       let response = request-interpreter(address, request) in
       let _ on response = write(response, fd) in
       try _ = close(fd) in
