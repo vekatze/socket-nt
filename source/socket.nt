@@ -145,13 +145,13 @@ data client-summary {
   )
 }
 
-inline _consumer<a>(ch: &channel(client-summary), request-interpreter: (socket-address, text) -> text): system(a) {
+inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, text) -> text): system(a) {
   let f =
     define loop(): system(a) {
       let summary = receive(ch) in
       let Client-Summary of {fd, address} = summary in
       try request = read(fd, 1024) in
-      let response = request-interpreter(address, request) in
+      let response = !request-interpreter(address, request) in
       let _ on response = write(response, fd) in
       try _ = close(fd) in
       let _ = response in
@@ -224,14 +224,14 @@ define _wait-all<a>(ys: list(thread(a))): unit {
 inline _create-consumers(
   ch: &channel(client-summary),
   n: int,
-  f: (socket-address, text) -> text,
+  !f: (socket-address, text) -> text,
 ): list(thread(system(unit))) {
   let f =
     define self(n: int): list(thread(system(unit))) {
       if eq-int(n, 0) {
         []
       } else {
-        let consumer = detach {_consumer(ch, f)} in
+        let consumer = detach {_consumer(ch, !f)} in
         let consumers = self(sub-int(n, 1)) in
         Cons(consumer, consumers)
       }
@@ -294,6 +294,7 @@ define zen(): unit {
         function (address: socket-address, t: text): text {
           let Socket-Address of {ip-address, port} = address in
           printf("client: {}:{}\n", [ip-address, %ld(magic cast(_, _, port))]);
+          // sleep(3);
           let len on t = text-byte-length(t) in
           let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [%ld(len)]) in
           let body-len on body = text-byte-length(body) in
