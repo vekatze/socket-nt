@@ -1,8 +1,15 @@
 import {
   AF,
+  core.c-string {c-string, from-c-string},
+  core.channel {channel, receive, send},
   core.errno {Errno, report-system-error, system},
+  core.file {close},
+  core.file.descriptor {descriptor},
+  core.int.show {show-int},
+  core.magic,
   core.memory {load-int16, store-int},
-  core.text {_from-c-string, _get-content-pointer, format, text-byte-length},
+  core.text {_get-content-pointer, format, text-byte-length},
+  core.text.io {read, write},
   core.word,
   this.address-family {address-family},
   this.socket-type {SOCK_STREAM, socket-type},
@@ -171,9 +178,9 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
   if lt-int(client-fd, 0) {
     report-system-error()
   } else {
-    let client-ip-ptr = magic alloca(int16, 1) in
+    let client-ip-ptr: &c-string = core.magic.cast(int, &c-string, magic alloca(int16, 1)) in
     magic external inet_ntop(AF.decode(AF.AF_INET), add-int(client-addr, 4), client-ip-ptr, INET_ADDRSTRLEN);
-    let client-ip-address = _from-c-string(client-ip-ptr) in
+    let client-ip-address = from-c-string(client-ip-ptr) in
     let client-port = load-int16(add-int(client-addr, 2)) in
     let client-port': int16 = magic external ntohs(client-port) in
     let fd = magic cast(int, descriptor, client-fd) in
@@ -275,7 +282,7 @@ data config {
 inline start-server(c: config): system(unit) {
   let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c in
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
-  printf("listening {}:{}\n", [*address, %ld(magic cast(_, _, port))]);
+  printf("listening {}:{}\n", [*address, show-int(magic cast(_, _, port))]);
   _server-loop(threads, s, interpreter)
 }
 
@@ -293,20 +300,20 @@ define zen(): unit {
       interpreter = {
         function (address: socket-address, t: text): text {
           let Socket-Address of {ip-address, port} = address in
-          printf("client: {}:{}\n", [ip-address, %ld(magic cast(_, _, port))]);
+          printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
           // sleep(3);
           let len on t = text-byte-length(t) in
-          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [%ld(len)]) in
+          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [show-int(len)]) in
           let body-len on body = text-byte-length(body) in
           printf("request:\n{}\n", [t]);
-          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [%ld(body-len), body])
+          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [show-int(body-len), body])
         }
       },
     }
   in
   match start-server(server-config) {
   | Left(Errno(i)) =>
-    printf("failed to start a server. error code: {}\n", [%ld(i)])
+    printf("failed to start a server. error code: {}\n", [show-int(i)])
   | Right(_) =>
     Unit
   }
