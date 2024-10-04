@@ -113,6 +113,8 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   | linux =>
     match af {
     | AF.AF_INET =>
+      // suppress "Imported but not used: `store-int8`"
+      let _ = store-int8 in
       let server-addr = _Pointer(magic alloca(int8, 16)) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
