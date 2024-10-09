@@ -55,6 +55,7 @@ define main(): unit {
       port = 8080,
       address = "0.0.0.0",
       backlog = 128,
+      threads = 4,
       interpreter = {
         // interpreter: (request) -> response
         function (t: text): text {
@@ -65,9 +66,9 @@ define main(): unit {
     }
   in
   match start-server(server-config) {
-  | Fail(Errno(i)) =>
-    printf("failed to start a server. error code: {}\n", [show(i)])
-  | Pass(_) =>
+  | Left(errno) =>
+    printf("error: {}\n", [get-error-message(errno)])
+  | Right(_) =>
     Unit
   }
 }
