@@ -34,7 +34,7 @@ data config {
     address: &text,
     backlog: int, // the second argument of listen(2)
     threads: int, // the number of worker threads
-    interpreter: (socket-address, text) -> text, // how to interpret responses
+    interpreter: (socket-address, text) -> text, // how to interpret requests
   )
 }
 
