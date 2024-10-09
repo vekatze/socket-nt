@@ -8,7 +8,41 @@
 neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-18.tar.zst
 ```
 
-## Example Code
+## Types
+
+```neut
+// Only AF_INET is supported for now.
+data address-family {
+| AF_INET
+}
+
+// See socket(2).
+data socket-type {
+| SOCK_STREAM
+| SOCK_DGRAM
+| SOCK_RAW
+}
+
+// Server configuration.
+data config {
+| Config(
+    family: address-family,
+    comm-type: socket-type,
+    reuse-socket: bool, // whether to enable SO_REUSEADDR
+    protocol: int, // the third argument of socket(2)
+    port: int16,
+    address: &text,
+    backlog: int, // the second argument of listen(2)
+    threads: int, // the number of threads used to process requests
+    interpreter: (socket-address, text) -> text, // how to interpret responses
+  )
+}
+
+// Starts a server.
+inline start-server(c: config): system(unit)
+```
+
+## Example
 
 ```neut
 define main(): unit {
@@ -58,7 +92,7 @@ curl --silent http://127.0.0.1:8080/foo/bar -d "whatever" | jq
 # }
 ```
 
-The server logs the request like the below:
+The server logs the request like the following:
 
 ```text
 ❯ neut build --execute
