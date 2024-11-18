@@ -29,10 +29,10 @@ data config {
     family: address-family,
     comm-type: socket-type,
     reuse-socket: bool, // whether to enable SO_REUSEADDR
-    protocol: int, // the third argument of socket(2)
+    protocol: c-int, // the third argument of socket(2)
     port: int16,
     address: &text,
-    backlog: int, // the second argument of listen(2)
+    backlog: c-int, // the second argument of listen(2)
     threads: int, // the number of worker threads
     interpreter: (socket-address, text) -> text, // how to interpret requests
   )

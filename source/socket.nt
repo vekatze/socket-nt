@@ -1,5 +1,6 @@
 import {
   AF,
+  core.c-int {C-Int, c-int, from-c-int},
   core.c-string {c-string, from-c-string, to-c-string},
   core.channel {channel, receive, send},
   core.errno {get-error-message, report-system-error, system},
@@ -7,7 +8,7 @@ import {
   core.file.descriptor {descriptor},
   core.int.show {show-int},
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
-  core.pointer {_Pointer, shift},
+  core.pointer {shift},
   core.text {format, text-byte-length},
   core.text.io {read, write},
   core.word,
@@ -15,80 +16,87 @@ import {
   this.socket-type {SOCK_STREAM, socket-type},
 }
 
+data _socklen-t {
+| Socklen(int32)
+}
+
+constant _in-addr-t: type {
+  // unknown
+  int32
+}
+
 foreign {
-  socket(int, int, int): int,
-  setsockopt(int, int, int, pointer, int): int,
-  getsockopt(int, int, int, pointer, pointer): int,
-  inet_addr(pointer): int,
-  inet_ntop(int, pointer, pointer, int): pointer,
-  bind(int, pointer, int): int,
-  listen(int, int): int,
-  accept(int, pointer, pointer): int,
+  socket(c-int, c-int, c-int): c-int,
+  setsockopt(c-int, c-int, c-int, pointer, _socklen-t): c-int,
+  getsockopt(c-int, c-int, c-int, pointer, pointer): c-int,
+  inet_addr(pointer): _in-addr-t,
+  inet_ntop(c-int, pointer, pointer, _socklen-t): pointer,
+  bind(c-int, pointer, _socklen-t): c-int,
+  listen(c-int, c-int): c-int,
+  accept(c-int, pointer, pointer): c-int,
   htons(int16): int16,
   ntohs(int16): int16,
-  close(int): int,
-  snprintf(pointer, int, pointer): int,
-  sprintf(pointer, pointer): int,
 }
 
 constant sockaddr-in-size: int8 {
   16
 }
 
-constant SOL_SOCKET: int {
+constant SOL_SOCKET: c-int {
   introspect os {
   | darwin =>
-    65535
+    C-Int(65535)
   | linux =>
-    1
+    C-Int(1)
   }
 }
 
-constant SO_REUSEADDR: int {
+constant SO_REUSEADDR: c-int {
   introspect os {
   | darwin =>
-    4
+    C-Int(4)
   | linux =>
-    2
+    C-Int(2)
   }
 }
 
-constant INET_ADDRSTRLEN: int {
-  16
+constant INET_ADDRSTRLEN: _socklen-t {
+  Socklen(16)
 }
 
 define _make-socket-reusable(s: descriptor): system(unit) {
-  let option-size: int = core.word.size in
-  let enable = _Pointer(magic alloca(int, 1)) in
+  let s = magic cast(descriptor, c-int, s) in
+  let option-size = Socklen(trunc-int-int32(core.word.size)) in
+  let enable = magic alloca(int, 1) in
   store-int(1, enable);
-  let result: int = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
-  let so-reuse-port: int = 512 in
-  let _: int = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
-  if eq-int(result, 0) {
+  let result = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
+  let so-reuse-port = C-Int(512) in
+  let _ = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
+  if eq-int(from-c-int(result), 0) {
     Right(Unit)
   } else {
     report-system-error()
   }
 }
 
-define _create-socket(af: address-family, comm-type: socket-type, protocol: int): system(descriptor) {
+define _create-socket(af: address-family, comm-type: socket-type, protocol: c-int): system(descriptor) {
   let d =
     magic external socket(
-      AF.decode(af),
+      C-Int(sext-int8-int32(AF.decode(af))),
       this.socket-type.decode(comm-type),
       protocol,
     )
   in
-  if lt-int(d, 0) {
+  if lt-int(from-c-int(d), 0) {
     report-system-error()
   } else {
-    Right(magic cast(int, descriptor, d))
+    Right(magic cast(c-int, descriptor, d))
   }
 }
 
-define _inet-addr(address: &text): int32 {
+define _inet-addr(address: &text): _in-addr-t {
   pin addr = to-c-string(address) in
-  magic external inet_addr(addr)
+  magic external inet_addr(magic cast(&c-string, pointer, addr))
 }
 
 define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16): system(unit) {
@@ -96,15 +104,21 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   | darwin =>
     match af {
     | AF.AF_INET =>
-      let server-addr = _Pointer(magic alloca(int8, 16)) in
+      let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
       store-int8(sockaddr-in-size, server-addr);
       store-int8(AF.decode(af), shift(server-addr, 1));
       store-int16(port', shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
-      let result = magic external bind(s, server-addr, sockaddr-in-size) in
-      if lt-int(result, 0) {
+      let result =
+        magic external bind(
+          magic cast(descriptor, c-int, s),
+          server-addr,
+          Socklen(zext-int8-int32(sockaddr-in-size)),
+        )
+      in
+      if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
         Right(Unit)
@@ -115,14 +129,20 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
     | AF.AF_INET =>
       // suppress "Imported but not used: `store-int8`"
       let _ = store-int8 in
-      let server-addr = _Pointer(magic alloca(int8, 16)) in
+      let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
       store-int16(zext-int8-int16(AF.decode(af)), shift(server-addr, 0));
       store-int16(port', shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
-      let result = magic external bind(s, server-addr, sockaddr-in-size) in
-      if lt-int(result, 0) {
+      let result =
+        magic external bind(
+          magic cast(descriptor, c-int, s),
+          server-addr,
+          Socklen(zext-int8-int32(sockaddr-in-size)),
+        )
+      in
+      if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
         Right(Unit)
@@ -131,9 +151,14 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   }
 }
 
-define _listen-socket(s: descriptor, backlog: int): system(unit) {
-  let result = magic external listen(s, backlog) in
-  if lt-int(result, 0) {
+define _listen-socket(s: descriptor, backlog: c-int): system(unit) {
+  let result =
+    magic external listen(
+      magic cast(descriptor, c-int, s),
+      backlog,
+    )
+  in
+  if lt-int(from-c-int(result), 0) {
     report-system-error()
   } else {
     Right(Unit)
@@ -171,21 +196,28 @@ inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-
 }
 
 inline _process-request(ch: &channel(client-summary), s: descriptor): system(unit) {
-  let client-addr = _Pointer(magic alloca(int8, 16)) in
-  let address = _Pointer(magic alloca(int8, 4)) in
+  let client-addr = magic alloca(int8, 16) in
+  let address = magic alloca(int8, 4) in
   store-int32(zext-int8-int32(sockaddr-in-size), address);
-  let client-fd = magic external accept(s, client-addr, address) in
+  let client-fd = magic external accept(magic cast(descriptor, c-int, s), client-addr, address) in
   let client-len = load-int32(address) in
   let _ = client-len in
-  if lt-int(client-fd, 0) {
+  if lt-int(from-c-int(client-fd), 0) {
     report-system-error()
   } else {
     let client-ip-ptr: &c-string = magic alloca(int16, 1) in
-    magic external inet_ntop(AF.decode(AF.AF_INET), shift(client-addr, 4), client-ip-ptr, INET_ADDRSTRLEN);
+    let _ =
+      magic external inet_ntop(
+        C-Int(sext-int8-int32(AF.decode(AF.AF_INET))),
+        shift(client-addr, 4),
+        magic cast(&c-string, pointer, client-ip-ptr),
+        INET_ADDRSTRLEN,
+      )
+    in
     let client-ip-address = from-c-string(client-ip-ptr) in
     let client-port = load-int16(shift(client-addr, 2)) in
     let client-port': int16 = magic external ntohs(client-port) in
-    let fd = magic cast(int, descriptor, client-fd) in
+    let fd = magic cast(c-int, descriptor, client-fd) in
     let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
     send(ch, summary);
     Right(Unit)
@@ -196,10 +228,10 @@ define _create-server-socket(
   af: address-family,
   comm-type: socket-type,
   reuse-socket: bool,
-  protocol: int,
+  protocol: c-int,
   address: &text,
   port: int16,
-  connection-queue-size: int,
+  connection-queue-size: c-int,
 ): system(descriptor) {
   try s = _create-socket(af, comm-type, protocol) in
   try _ =
@@ -272,10 +304,10 @@ data config {
     family: address-family,
     comm-type: socket-type,
     reuse-socket: bool,
-    protocol: int,
+    protocol: c-int,
     port: int16,
     address: &text,
-    backlog: int,
+    backlog: c-int,
     threads: int,
     interpreter: (socket-address, text) -> text,
   )
@@ -294,10 +326,10 @@ define zen(): unit {
       family = AF.AF_INET,
       comm-type = SOCK_STREAM,
       reuse-socket = True,
-      protocol = 0,
+      protocol = C-Int(0),
       port = 8080,
       address = "0.0.0.0",
-      backlog = 128,
+      backlog = C-Int(128),
       threads = 10,
       interpreter = {
         function (address: socket-address, t: text): text {
