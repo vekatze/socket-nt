@@ -3,17 +3,16 @@ import {
   core.c-int {C-Int, c-int, from-c-int},
   core.c-string {c-string, from-c-string, to-c-string},
   core.channel {channel, receive, send},
-  core.errno {get-error-message, report-system-error, system},
+  core.errno {report-system-error, system},
   core.file {close},
   core.file.descriptor {descriptor},
   core.int.show {show-int},
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
   core.pointer {shift},
-  core.text {format, text-byte-length},
   core.text.io {read, write},
   core.word,
   this.address-family {address-family},
-  this.socket-type {SOCK_STREAM, socket-type},
+  this.socket-type {socket-type},
 }
 
 data _socklen-t {
@@ -318,41 +317,4 @@ inline start-server(c: config): system(unit) {
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
   printf("listening {}:{}\n", [*address, show-int(magic cast(_, _, port))]);
   _server-loop(threads, s, interpreter)
-}
-
-define zen(): unit {
-  let server-config =
-    Config of {
-      family = AF.AF_INET,
-      comm-type = SOCK_STREAM,
-      reuse-socket = True,
-      protocol = C-Int(0),
-      port = 8080,
-      address = "0.0.0.0",
-      backlog = C-Int(128),
-      threads = 10,
-      interpreter = {
-        function (address: socket-address, t: text): text {
-          let Socket-Address of {ip-address, port} = address in
-          printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
-          // sleep(3);
-          let len on t = text-byte-length(t) in
-          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [show-int(len)]) in
-          let body-len on body = text-byte-length(body) in
-          printf("request:\n{}\n", [t]);
-          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [show-int(body-len), body])
-        }
-      },
-    }
-  in
-  match start-server(server-config) {
-  | Left(errno) =>
-    printf("error: {}\n", [get-error-message(errno)])
-  | Right(_) =>
-    Unit
-  }
-}
-
-define main(): unit {
-  zen()
 }

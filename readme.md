@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-20.tar.zst
+neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-21.tar.zst
 ```
 
 ## Types
@@ -44,6 +44,8 @@ inline start-server(c: config): system(unit)
 
 ## Example
 
+`source/test.nt` contains something like the following:
+
 ```neut
 define main(): unit {
   let server-config =
@@ -51,16 +53,21 @@ define main(): unit {
       family = AF.AF_INET,
       comm-type = SOCK_STREAM,
       reuse-socket = True,
-      protocol = 0,
+      protocol = C-Int(0),
       port = 8080,
       address = "0.0.0.0",
-      backlog = 128,
-      threads = 4,
+      backlog = C-Int(128),
+      threads = 10,
       interpreter = {
-        // interpreter: (request) -> response
-        function (t: text): text {
+        function (address: socket-address, t: text): text {
+          let Socket-Address of {ip-address, port} = address in
+          printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
+          // sleep(3);
+          let len on t = text-byte-length(t) in
+          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [show-int(len)]) in
+          let body-len on body = text-byte-length(body) in
           printf("request:\n{}\n", [t]);
-          *"HTTP/1.1 200 OK\r\nContent-Length: 24\r\n\r\n{\"key\": \"Hello, world!\"}"
+          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [show-int(body-len), body])
         }
       },
     }
@@ -74,10 +81,10 @@ define main(): unit {
 }
 ```
 
-Then run `neut build --execute`:
+You can run this by `neut build test --execute`:
 
 ```text
-❯ neut build --execute
+❯ neut build test --execute
 listening 0.0.0.0:8080
 ```
 

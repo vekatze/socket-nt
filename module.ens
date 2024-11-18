@@ -1,7 +1,7 @@
 {
   target {
-    socket {
-      main "socket.nt",
+    test {
+      main "test.nt",
     },
   },
   prefix {
