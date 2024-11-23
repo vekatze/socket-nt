@@ -53,16 +53,15 @@ define main(): unit {
       family = AF.AF_INET,
       comm-type = SOCK_STREAM,
       reuse-socket = True,
-      protocol = C-Int(0),
+      protocol = 0,
       port = 8080,
       address = "0.0.0.0",
-      backlog = C-Int(128),
+      backlog = 128,
       threads = 10,
       interpreter = {
         function (address: socket-address, t: text): text {
           let Socket-Address of {ip-address, port} = address in
           printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
-          // sleep(3);
           let len on t = text-byte-length(t) in
           let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [show-int(len)]) in
           let body-len on body = text-byte-length(body) in

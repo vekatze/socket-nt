@@ -42,20 +42,20 @@ constant sockaddr-in-size: int8 {
 }
 
 constant SOL_SOCKET: c-int {
-  introspect os {
+  introspect operating-system {
   | darwin =>
-    C-Int(65535)
+    65535
   | linux =>
-    C-Int(1)
+    1
   }
 }
 
 constant SO_REUSEADDR: c-int {
-  introspect os {
+  introspect operating-system {
   | darwin =>
-    C-Int(4)
+    4
   | linux =>
-    C-Int(2)
+    2
   }
 }
 
@@ -69,7 +69,7 @@ define _make-socket-reusable(s: descriptor): system(unit) {
   let enable = magic alloca(int, 1) in
   store-int(1, enable);
   let result = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
-  let so-reuse-port = C-Int(512) in
+  let so-reuse-port = 512 in
   let _ = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
   if eq-int(from-c-int(result), 0) {
     Right(Unit)
@@ -99,7 +99,7 @@ define _inet-addr(address: &text): _in-addr-t {
 }
 
 define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16): system(unit) {
-  introspect os {
+  introspect operating-system {
   | darwin =>
     match af {
     | AF.AF_INET =>
