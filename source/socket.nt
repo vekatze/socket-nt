@@ -19,7 +19,7 @@ data _socklen-t {
 | Socklen(int32)
 }
 
-constant _in-addr-t: type {
+inline _in-addr-t: type {
   // unknown
   int32
 }
@@ -37,11 +37,11 @@ foreign {
   ntohs(int16): int16,
 }
 
-constant sockaddr-in-size: int8 {
+inline sockaddr-in-size: int8 {
   16
 }
 
-constant SOL_SOCKET: c-int {
+inline SOL_SOCKET: c-int {
   introspect operating-system {
   | darwin =>
     65535
@@ -50,7 +50,7 @@ constant SOL_SOCKET: c-int {
   }
 }
 
-constant SO_REUSEADDR: c-int {
+inline SO_REUSEADDR: c-int {
   introspect operating-system {
   | darwin =>
     4
@@ -59,7 +59,7 @@ constant SO_REUSEADDR: c-int {
   }
 }
 
-constant INET_ADDRSTRLEN: _socklen-t {
+inline INET_ADDRSTRLEN: _socklen-t {
   Socklen(16)
 }
 
