@@ -32,9 +32,9 @@ define main(): unit {
     }
   in
   match start-server(server-config) {
-  | Left(errno) =>
+  | Error(errno) =>
     printf("error: {}\n", [get-error-message(errno)])
-  | Right(_) =>
+  | OK(_) =>
     Unit
   }
 }
