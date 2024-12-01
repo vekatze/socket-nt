@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-26.tar.zst
+neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-27.tar.zst
 ```
 
 ## Types
@@ -72,9 +72,9 @@ define main(): unit {
     }
   in
   match start-server(server-config) {
-  | Left(errno) =>
+  | Error(errno) =>
     printf("error: {}\n", [get-error-message(errno)])
-  | Right(_) =>
+  | OK(_) =>
     Unit
   }
 }
