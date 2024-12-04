@@ -72,7 +72,7 @@ define _make-socket-reusable(s: descriptor): system(unit) {
   let so-reuse-port = 512 in
   let _ = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
   if eq-int(from-c-int(result), 0) {
-    OK(Unit)
+    Right(Unit)
   } else {
     report-system-error()
   }
@@ -89,7 +89,7 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: c-in
   if lt-int(from-c-int(d), 0) {
     report-system-error()
   } else {
-    OK(magic cast(c-int, descriptor, d))
+    Right(magic cast(c-int, descriptor, d))
   }
 }
 
@@ -120,7 +120,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
-        OK(Unit)
+        Right(Unit)
       }
     }
   | linux =>
@@ -144,7 +144,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
-        OK(Unit)
+        Right(Unit)
       }
     }
   }
@@ -160,7 +160,7 @@ define _listen-socket(s: descriptor, backlog: c-int): system(unit) {
   if lt-int(from-c-int(result), 0) {
     report-system-error()
   } else {
-    OK(Unit)
+    Right(Unit)
   }
 }
 
@@ -219,7 +219,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
     let fd = magic cast(c-int, descriptor, client-fd) in
     let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
     send(ch, quote {summary});
-    OK(Unit)
+    Right(Unit)
   }
 }
 
@@ -237,12 +237,12 @@ define _create-server-socket(
     if reuse-socket {
       _make-socket-reusable(s)
     } else {
-      OK(Unit)
+      Right(Unit)
     }
   in
   try _ = _bind-socket(af, s, address, port) in
   try _ = _listen-socket(s, connection-queue-size) in
-  OK(s)
+  Right(s)
 }
 
 define _consumer-loop<a>(q: &channel(thread(system(unit)))): system(a) {
@@ -292,7 +292,7 @@ inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, text
     in
     try _ = producer() in
     // unreachable
-    OK(_wait-all(consumers))
+    Right(_wait-all(consumers))
   in
   let _ = ch in
   result
