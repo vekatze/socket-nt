@@ -1,7 +1,7 @@
 import {
   AF,
-  core.errno {get-error-message},
   core.int.show {show-int},
+  core.system {get-error-message},
   core.text {format, text-byte-length},
   this.socket {Config, Socket-Address, socket-address, start-server},
   this.socket-type {SOCK_STREAM},
