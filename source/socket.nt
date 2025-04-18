@@ -2,7 +2,7 @@ import {
   AF,
   core.c-int {C-Int, c-int, from-c-int},
   core.c-string {c-string, from-c-string, to-c-string},
-  core.channel {new-channel, receive, send},
+  core.channel {receive, send},
   core.file {close},
   core.file.descriptor {descriptor},
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
@@ -217,7 +217,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
     let client-port': int16 = magic external ntohs(client-port) in
     let fd = magic cast(c-int, descriptor, client-fd) in
     let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
-    send(ch, quote {summary});
+    send(ch, summary);
     Right(Unit)
   }
 }
