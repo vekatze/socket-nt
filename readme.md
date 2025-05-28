@@ -50,7 +50,7 @@ inline start-server(c: config): system(unit)
 define main(): unit {
   let server-config =
     Config of {
-      family = AF.AF_INET,
+      family = AF_INET,
       comm-type = SOCK_STREAM,
       reuse-socket = True,
       protocol = 0,

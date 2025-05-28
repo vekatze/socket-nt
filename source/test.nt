@@ -1,8 +1,8 @@
 import {
-  AF,
   core.int.show {show-int},
   core.system {get-error-message},
   core.text {format, text-byte-length},
+  this.address-family {AF_INET},
   this.socket {Config, Socket-Address, socket-address, start-server},
   this.socket-type {SOCK_STREAM},
 }
@@ -10,7 +10,7 @@ import {
 define main(): unit {
   let server-config =
     Config of {
-      family = AF.AF_INET,
+      family = AF_INET,
       comm-type = SOCK_STREAM,
       reuse-socket = True,
       protocol = 0,

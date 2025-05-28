@@ -1,5 +1,4 @@
 import {
-  AF,
   core.c-int {C-Int, c-int, from-c-int},
   core.c-string {c-string, from-c-string, to-c-string},
   core.channel {receive, send},
@@ -10,7 +9,7 @@ import {
   core.system {report-system-error, system},
   core.text.io {read, write},
   core.word,
-  this.address-family {address-family},
+  this.address-family {AF_INET, address-family},
   this.socket-type {socket-type},
 }
 
@@ -80,7 +79,7 @@ define _make-socket-reusable(s: descriptor): system(unit) {
 define _create-socket(af: address-family, comm-type: socket-type, protocol: c-int): system(descriptor) {
   let d =
     magic external socket(
-      C-Int(sext-int8-int32(AF.decode(af))),
+      C-Int(sext-int8-int32(this.address-family.decode(af))),
       this.socket-type.decode(comm-type),
       protocol,
     )
@@ -101,12 +100,12 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   introspect operating-system {
   | darwin =>
     match af {
-    | AF.AF_INET =>
+    | AF_INET =>
       let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
       store-int8(sockaddr-in-size, server-addr);
-      store-int8(AF.decode(af), shift(server-addr, 1));
+      store-int8(this.address-family.decode(af), shift(server-addr, 1));
       store-int16(port', shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
@@ -124,13 +123,13 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
     }
   | linux =>
     match af {
-    | AF.AF_INET =>
+    | AF_INET =>
       // suppress "Imported but not used: `store-int8`"
       let _ = store-int8 in
       let server-addr = magic alloca(int8, 16) in
       let port': int16 = magic external htons(port) in
       let in-addr = _inet-addr(address) in
-      store-int16(zext-int8-int16(AF.decode(af)), shift(server-addr, 0));
+      store-int16(zext-int8-int16(this.address-family.decode(af)), shift(server-addr, 0));
       store-int16(port', shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
@@ -184,7 +183,7 @@ inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-
       let Client-Summary of {fd, address} = summary in
       try request = read(fd, 1024) in
       let response = !request-interpreter(address, request) in
-      let _ on response = write(response, fd) in
+      let _ on response = write(fd, response) in
       try _ = close(fd) in
       let _ = response in
       loop()
@@ -206,7 +205,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
     let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int16, 1)) in
     let _ =
       magic external inet_ntop(
-        C-Int(sext-int8-int32(AF.decode(AF.AF_INET))),
+        C-Int(sext-int8-int32(this.address-family.decode(AF_INET))),
         shift(client-addr, 4),
         magic cast(&c-string, pointer, client-ip-ptr),
         INET_ADDRSTRLEN,
