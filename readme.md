@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-33.tar.zst
+neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-34.tar.zst
 ```
 
 ## Types
