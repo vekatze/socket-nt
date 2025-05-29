@@ -202,7 +202,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
   if lt-int(from-c-int(client-fd), 0) {
     report-system-error()
   } else {
-    let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int16, 1)) in
+    let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int8, 16)) in
     let _ =
       magic external inet_ntop(
         C-Int(sext-int8-int32(this.address-family.decode(AF_INET))),
