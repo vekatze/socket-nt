@@ -1,4 +1,5 @@
 import {
+  core.file.descriptor {descriptor},
   core.int.show {show-int},
   core.system {get-error-message},
   core.text {format, text-byte-length},
@@ -12,20 +13,18 @@ define main(): unit {
     Config of {
       family = AF_INET,
       comm-type = SOCK_STREAM,
-      reuse-socket = True,
+      reuse-socket = False,
       protocol = 0,
       port = 8080,
       address = "0.0.0.0",
       backlog = 128,
       threads = 10,
       interpreter = {
-        function (address: socket-address, t: text): text {
+        function (address: socket-address, _: descriptor): text {
           let Socket-Address of {ip-address, port} = address in
           printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
-          let len on t = text-byte-length(t) in
-          let body = format("{\"key\": \"Hello, world!\", \"request-length\": {}}", [show-int(len)]) in
+          let body = *"hello" in
           let body-len on body = text-byte-length(body) in
-          printf("request:\n{}\n", [t]);
           format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [show-int(body-len), body])
         }
       },

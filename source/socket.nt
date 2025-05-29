@@ -7,7 +7,7 @@ import {
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
   core.pointer {shift},
   core.system {report-system-error, system},
-  core.text.io {read, write},
+  core.text.io {write},
   core.word,
   this.address-family {AF_INET, address-family},
   this.socket-type {socket-type},
@@ -176,13 +176,12 @@ data client-summary {
   )
 }
 
-inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, text) -> text): system(a) {
+inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text): system(a) {
   let f =
     define loop(): system(a) {
       let summary = receive(ch) in
       let Client-Summary of {fd, address} = summary in
-      try request = read(fd, 1024) in
-      let response = !request-interpreter(address, request) in
+      let response = !request-interpreter(address, fd) in
       let _ on response = write(fd, response) in
       try _ = close(fd) in
       let _ = response in
@@ -262,7 +261,7 @@ define _wait-all<a>(ys: list(thread(a))): unit {
 inline _create-consumers(
   ch: &channel(client-summary),
   n: int,
-  !f: (socket-address, text) -> text,
+  !f: (socket-address, descriptor) -> text,
 ): list(thread(system(unit))) {
   let f =
     define self(n: int): list(thread(system(unit))) {
@@ -278,7 +277,7 @@ inline _create-consumers(
   f(n)
 }
 
-inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, text) -> text): system(unit) {
+inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> text): system(unit) {
   let ch = new-channel() in
   let result on ch =
     let consumers = _create-consumers(ch, num-of-threads, f) in
@@ -306,7 +305,7 @@ data config {
     address: &text,
     backlog: c-int,
     threads: int,
-    interpreter: (socket-address, text) -> text,
+    interpreter: (socket-address, descriptor) -> text,
   )
 }
 
