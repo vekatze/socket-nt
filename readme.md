@@ -48,28 +48,33 @@ inline start-server(c: config): system(unit)
 define main(): unit {
   let server-config =
     Config of {
-      family = AF_INET,
-      comm-type = SOCK_STREAM,
-      reuse-socket = True,
-      protocol = 0,
-      port = 8080,
-      address = "0.0.0.0",
-      backlog = 128,
-      threads = 10,
-      interpreter = {
-        function (address: socket-address, t: text): text {
-          let Socket-Address of {ip-address, port} = address in
-          printf("client: {}:{}\n", [ip-address, show-int(magic cast(_, _, port))]);
-          let body = *"hello" in
-          let body-len on body = text-byte-length(body) in
+      family := AF_INET,
+      comm-type := SOCK_STREAM,
+      reuse-socket := False,
+      protocol := 0,
+      port := 8080,
+      address := "0.0.0.0",
+      backlog := 128,
+      threads := 10,
+      interpreter := {
+        function (address: socket-address, _: descriptor): text {
+          let Socket-Address of {ip-address, port} = address;
+          pin ip-address = ip-address;
+          print("client: ");
+          print(ip-address);
+          print(":");
+          print-int-line(magic cast(_, _, port));
+          let body = *"hello";
+          let body-len on body = text-byte-length(body);
           format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", [show-int(body-len), body])
         }
       },
-    }
-  in
+    };
   match start-server(server-config) {
   | Left(errno) =>
-    printf("error: {}\n", [get-error-message(errno)])
+    pin error = get-error-message(errno);
+    print("error: ");
+    print-line(error)
   | Right(_) =>
     Unit
   }

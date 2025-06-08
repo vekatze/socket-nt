@@ -62,13 +62,13 @@ inline INET_ADDRSTRLEN: _socklen-t {
 }
 
 define _make-socket-reusable(s: descriptor): system(unit) {
-  let s = magic cast(descriptor, c-int, s) in
-  let option-size = Socklen(trunc-int-int32(core.word.size)) in
-  let enable = magic alloca(int, 1) in
+  let s = magic cast(descriptor, c-int, s);
+  let option-size = Socklen(trunc-int-int32(core.word.size));
+  let enable = magic alloca(int, 1);
   store-int(1, enable);
-  let result = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size) in
-  let so-reuse-port = 512 in
-  let _ = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size) in
+  let result = magic external setsockopt(s, SOL_SOCKET, SO_REUSEADDR, enable, option-size);
+  let so-reuse-port = 512;
+  let _ = magic external setsockopt(s, SOL_SOCKET, so-reuse-port, enable, option-size);
   if eq-int(from-c-int(result), 0) {
     Right(Unit)
   } else {
@@ -82,8 +82,7 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: c-in
       C-Int(sext-int8-int32(this.address-family.decode(af))),
       this.socket-type.decode(comm-type),
       protocol,
-    )
-  in
+    );
   if lt-int(from-c-int(d), 0) {
     report-system-error()
   } else {
@@ -92,7 +91,7 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: c-in
 }
 
 define _inet-addr(address: &text): _in-addr-t {
-  pin addr = to-c-string(address) in
+  pin addr = to-c-string(address);
   magic external inet_addr(magic cast(&c-string, pointer, addr))
 }
 
@@ -101,9 +100,9 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   | darwin =>
     match af {
     | AF_INET =>
-      let server-addr = magic alloca(int8, 16) in
-      let port': int16 = magic external htons(port) in
-      let in-addr = _inet-addr(address) in
+      let server-addr = magic alloca(int8, 16);
+      let port': int16 = magic external htons(port);
+      let in-addr = _inet-addr(address);
       store-int8(sockaddr-in-size, server-addr);
       store-int8(this.address-family.decode(af), shift(server-addr, 1));
       store-int16(port', shift(server-addr, 2));
@@ -113,8 +112,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
           magic cast(descriptor, c-int, s),
           server-addr,
           Socklen(zext-int8-int32(sockaddr-in-size)),
-        )
-      in
+        );
       if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
@@ -125,10 +123,10 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
     match af {
     | AF_INET =>
       // suppress "Imported but not used: `store-int8`"
-      let _ = store-int8 in
-      let server-addr = magic alloca(int8, 16) in
-      let port': int16 = magic external htons(port) in
-      let in-addr = _inet-addr(address) in
+      let _ = store-int8;
+      let server-addr = magic alloca(int8, 16);
+      let port': int16 = magic external htons(port);
+      let in-addr = _inet-addr(address);
       store-int16(zext-int8-int16(this.address-family.decode(af)), shift(server-addr, 0));
       store-int16(port', shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
@@ -137,8 +135,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
           magic cast(descriptor, c-int, s),
           server-addr,
           Socklen(zext-int8-int32(sockaddr-in-size)),
-        )
-      in
+        );
       if lt-int(from-c-int(result), 0) {
         report-system-error()
       } else {
@@ -153,8 +150,7 @@ define _listen-socket(s: descriptor, backlog: c-int): system(unit) {
     magic external listen(
       magic cast(descriptor, c-int, s),
       backlog,
-    )
-  in
+    );
   if lt-int(from-c-int(result), 0) {
     report-system-error()
   } else {
@@ -179,42 +175,40 @@ data client-summary {
 inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text): system(a) {
   let f =
     define loop(): system(a) {
-      let summary = receive(ch) in
-      let Client-Summary of {fd, address} = summary in
-      let response = !request-interpreter(address, fd) in
-      let _ on response = write(fd, response) in
-      try _ = close(fd) in
-      let _ = response in
+      let summary = receive(ch);
+      let Client-Summary of {fd, address} = summary;
+      let response = !request-interpreter(address, fd);
+      let _ on response = write(fd, response);
+      try _ = close(fd);
+      let _ = response;
       loop()
-    }
-  in
+    };
   f()
 }
 
 inline _process-request(ch: &channel(client-summary), s: descriptor): system(unit) {
-  let client-addr = magic alloca(int8, 16) in
-  let address = magic alloca(int8, 4) in
+  let client-addr = magic alloca(int8, 16);
+  let address = magic alloca(int8, 4);
   store-int32(zext-int8-int32(sockaddr-in-size), address);
-  let client-fd = magic external accept(magic cast(descriptor, c-int, s), client-addr, address) in
-  let client-len = load-int32(address) in
-  let _ = client-len in
+  let client-fd = magic external accept(magic cast(descriptor, c-int, s), client-addr, address);
+  let client-len = load-int32(address);
+  let _ = client-len;
   if lt-int(from-c-int(client-fd), 0) {
     report-system-error()
   } else {
-    let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int8, 16)) in
+    let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int8, 16));
     let _ =
       magic external inet_ntop(
         C-Int(sext-int8-int32(this.address-family.decode(AF_INET))),
         shift(client-addr, 4),
         magic cast(&c-string, pointer, client-ip-ptr),
         INET_ADDRSTRLEN,
-      )
-    in
-    let client-ip-address = from-c-string(client-ip-ptr) in
-    let client-port = load-int16(shift(client-addr, 2)) in
-    let client-port': int16 = magic external ntohs(client-port) in
-    let fd = magic cast(c-int, descriptor, client-fd) in
-    let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port')) in
+      );
+    let client-ip-address = from-c-string(client-ip-ptr);
+    let client-port = load-int16(shift(client-addr, 2));
+    let client-port': int16 = magic external ntohs(client-port);
+    let fd = magic cast(c-int, descriptor, client-fd);
+    let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port'));
     send(ch, summary);
     Right(Unit)
   }
@@ -229,22 +223,21 @@ define _create-server-socket(
   port: int16,
   connection-queue-size: c-int,
 ): system(descriptor) {
-  try s = _create-socket(af, comm-type, protocol) in
+  try s = _create-socket(af, comm-type, protocol);
   try _ =
     if reuse-socket {
       _make-socket-reusable(s)
     } else {
       Right(Unit)
-    }
-  in
-  try _ = _bind-socket(af, s, address, port) in
-  try _ = _listen-socket(s, connection-queue-size) in
+    };
+  try _ = _bind-socket(af, s, address, port);
+  try _ = _listen-socket(s, connection-queue-size);
   Right(s)
 }
 
 define _consumer-loop<a>(q: &channel(thread(system(unit)))): system(a) {
-  let val-thread = receive(q) in
-  try _ = attach {val-thread} in
+  let val-thread = receive(q);
+  try _ = attach {val-thread};
   _consumer-loop(q)
 }
 
@@ -253,7 +246,7 @@ define _wait-all<a>(ys: list(thread(a))): unit {
   | Nil =>
     Unit
   | Cons(z, zs) =>
-    let _ = attach {z} in
+    let _ = attach {z};
     _wait-all(zs)
   }
 }
@@ -268,30 +261,28 @@ inline _create-consumers(
       if eq-int(n, 0) {
         []
       } else {
-        let consumer = detach {_consumer(ch, !f)} in
-        let consumers = self(sub-int(n, 1)) in
+        let consumer = detach {_consumer(ch, !f)};
+        let consumers = self(sub-int(n, 1));
         Cons(consumer, consumers)
       }
-    }
-  in
+    };
   f(n)
 }
 
 inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> text): system(unit) {
-  let ch = new-channel() in
-  let result on ch =
-    let consumers = _create-consumers(ch, num-of-threads, f) in
+  let ch = make-channel();
+  let result on ch = {
+    let consumers = _create-consumers(ch, num-of-threads, f);
     let producer =
       define self(): system(unit) {
-        try _ = _process-request(ch, s) in
+        try _ = _process-request(ch, s);
         self()
-      }
-    in
-    try _ = producer() in
+      };
+    try _ = producer();
     // unreachable
     Right(_wait-all(consumers))
-  in
-  let _ = ch in
+  };
+  let _ = ch;
   result
 }
 
@@ -310,7 +301,7 @@ data config {
 }
 
 inline start-server(c: config): system(unit) {
-  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c in
-  try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog) in
+  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c;
+  try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog);
   _server-loop(threads, s, interpreter)
 }
