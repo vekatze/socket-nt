@@ -259,7 +259,7 @@ inline _create-consumers(
   let f =
     define self(n: int): list(thread(system(unit))) {
       if eq-int(n, 0) {
-        []
+        Nil
       } else {
         let consumer = detach {_consumer(ch, !f)};
         let consumers = self(sub-int(n, 1));
