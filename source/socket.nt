@@ -1,7 +1,8 @@
 import {
+  core.box {axiom-T},
   core.c-int {C-Int, c-int, from-c-int},
   core.c-string {c-string, from-c-string, to-c-string},
-  core.channel {receive, send},
+  core.channel {make-channel, receive, send},
   core.file {close},
   core.file.descriptor {descriptor},
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
@@ -175,7 +176,7 @@ data client-summary {
 inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text): system(a) {
   let f =
     define loop(): system(a) {
-      let summary = receive(ch);
+      let summary = axiom-T(receive(ch));
       let Client-Summary of {fd, address} = summary;
       let response = !request-interpreter(address, fd);
       let _ on response = write(fd, response);
@@ -209,7 +210,7 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
     let client-port': int16 = magic external ntohs(client-port);
     let fd = magic cast(c-int, descriptor, client-fd);
     let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port'));
-    send(ch, summary);
+    send(ch, quote {summary});
     Right(Unit)
   }
 }
@@ -236,7 +237,7 @@ define _create-server-socket(
 }
 
 define _consumer-loop<a>(q: &channel(thread(system(unit)))): system(a) {
-  let val-thread = receive(q);
+  let val-thread = axiom-T(receive(q));
   try _ = attach {val-thread};
   _consumer-loop(q)
 }
