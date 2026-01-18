@@ -18,7 +18,7 @@ data _socklen-t {
 | Socklen(int32)
 }
 
-inline _in-addr-t: type {
+alias _in-addr-t {
   // unknown
   int32
 }
@@ -102,11 +102,11 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
     match af {
     | AF_INET =>
       let server-addr = magic alloca(int8, 16);
-      let port': int16 = magic external htons(port);
+      let port: int16 = magic external htons(port);
       let in-addr = _inet-addr(address);
       store-int8(sockaddr-in-size, server-addr);
       store-int8(this.address-family.decode(af), shift(server-addr, 1));
-      store-int16(port', shift(server-addr, 2));
+      store-int16(port, shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
         magic external bind(
@@ -126,10 +126,10 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
       // suppress "Imported but not used: `store-int8`"
       let _ = store-int8;
       let server-addr = magic alloca(int8, 16);
-      let port': int16 = magic external htons(port);
+      let port: int16 = magic external htons(port);
       let in-addr = _inet-addr(address);
       store-int16(zext-int8-int16(this.address-family.decode(af)), shift(server-addr, 0));
-      store-int16(port', shift(server-addr, 2));
+      store-int16(port, shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
         magic external bind(
@@ -207,10 +207,10 @@ inline _process-request(ch: &channel(client-summary), s: descriptor): system(uni
       );
     let client-ip-address = from-c-string(client-ip-ptr);
     let client-port = load-int16(shift(client-addr, 2));
-    let client-port': int16 = magic external ntohs(client-port);
+    let client-port: int16 = magic external ntohs(client-port);
     let fd = magic cast(c-int, descriptor, client-fd);
-    let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port'));
-    send(ch, quote {summary});
+    let summary = Client-Summary(fd, Socket-Address(client-ip-address, client-port));
+    send(ch, lift {summary});
     Right(Unit)
   }
 }
