@@ -177,8 +177,8 @@ inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-
   let f =
     define loop(): system(a) {
       let summary = axiom-T(receive(ch));
-      let Client-Summary of {fd, address} = summary;
-      let response = !request-interpreter(address, fd);
+      let Client-Summary{fd, address} = summary;
+      let response = request-interpreter(address, fd);
       let _ on response = write(fd, response);
       try _ = close(fd);
       let _ = response;
@@ -262,7 +262,7 @@ inline _create-consumers(
       if eq-int(n, 0) {
         Nil
       } else {
-        let consumer = detach {_consumer(ch, !f)};
+        let consumer = detach {_consumer(ch, f)};
         let consumers = self(sub-int(n, 1));
         Cons(consumer, consumers)
       }
@@ -302,7 +302,7 @@ data config {
 }
 
 inline start-server(c: config): system(unit) {
-  let Config of {family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c;
+  let Config{family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c;
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog);
   _server-loop(threads, s, interpreter)
 }

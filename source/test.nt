@@ -12,7 +12,7 @@ import {
 
 define main(): unit {
   let server-config =
-    Config of {
+    Config{
       family := AF_INET,
       comm-type := SOCK_STREAM,
       reuse-socket := False,
@@ -23,7 +23,7 @@ define main(): unit {
       threads := 10,
       interpreter := {
         function (address: socket-address, _: descriptor): text {
-          let Socket-Address of {ip-address, port} = address;
+          let Socket-Address{ip-address, port} = address;
           pin ip-address = ip-address;
           print("client: ");
           print(ip-address);
