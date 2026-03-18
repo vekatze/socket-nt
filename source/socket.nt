@@ -36,11 +36,11 @@ foreign {
   ntohs(int16): int16,
 }
 
-inline sockaddr-in-size: int8 {
+constant sockaddr-in-size: int8 {
   16
 }
 
-inline SOL_SOCKET: c-int {
+constant SOL_SOCKET: c-int {
   introspect operating-system {
   | darwin =>
     65535
@@ -49,7 +49,7 @@ inline SOL_SOCKET: c-int {
   }
 }
 
-inline SO_REUSEADDR: c-int {
+constant SO_REUSEADDR: c-int {
   introspect operating-system {
   | darwin =>
     4
@@ -58,11 +58,11 @@ inline SO_REUSEADDR: c-int {
   }
 }
 
-inline INET_ADDRSTRLEN: _socklen-t {
+constant INET_ADDRSTRLEN: _socklen-t {
   Socklen(16)
 }
 
-define _make-socket-reusable(s: descriptor): system(unit) {
+define _make-socket-reusable(s: descriptor) -> system(unit) {
   let s = magic cast(descriptor, c-int, s);
   let option-size = Socklen(trunc-int-int32(core.word.size));
   let enable = magic alloca(int, 1);
@@ -77,7 +77,7 @@ define _make-socket-reusable(s: descriptor): system(unit) {
   }
 }
 
-define _create-socket(af: address-family, comm-type: socket-type, protocol: c-int): system(descriptor) {
+define _create-socket(af: address-family, comm-type: socket-type, protocol: c-int) -> system(descriptor) {
   let d =
     magic external socket(
       C-Int(sext-int8-int32(this.address-family.decode(af))),
@@ -91,12 +91,12 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: c-in
   }
 }
 
-define _inet-addr(address: &text): _in-addr-t {
+define _inet-addr(address: &text) -> _in-addr-t {
   pin addr = to-c-string(address);
   magic external inet_addr(magic cast(&c-string, pointer, addr))
 }
 
-define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16): system(unit) {
+define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16) -> system(unit) {
   introspect operating-system {
   | darwin =>
     match af {
@@ -146,7 +146,7 @@ define _bind-socket(af: address-family, s: descriptor, address: &text, port: int
   }
 }
 
-define _listen-socket(s: descriptor, backlog: c-int): system(unit) {
+define _listen-socket(s: descriptor, backlog: c-int) -> system(unit) {
   let result =
     magic external listen(
       magic cast(descriptor, c-int, s),
@@ -173,9 +173,9 @@ data client-summary {
   )
 }
 
-inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text): system(a) {
+inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text) -> system(a) {
   let f =
-    define loop(): system(a) {
+    define loop() -> system(a) {
       let summary = axiom-T(receive(ch));
       let Client-Summary{fd, address} = summary;
       let response = request-interpreter(address, fd);
@@ -187,7 +187,7 @@ inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-
   f()
 }
 
-inline _process-request(ch: &channel(client-summary), s: descriptor): system(unit) {
+inline _process-request(ch: &channel(client-summary), s: descriptor) -> system(unit) {
   let client-addr = magic alloca(int8, 16);
   let address = magic alloca(int8, 4);
   store-int32(zext-int8-int32(sockaddr-in-size), address);
@@ -223,7 +223,8 @@ define _create-server-socket(
   address: &text,
   port: int16,
   connection-queue-size: c-int,
-): system(descriptor) {
+)->
+system(descriptor) {
   try s = _create-socket(af, comm-type, protocol);
   try _ =
     if reuse-socket {
@@ -236,13 +237,13 @@ define _create-server-socket(
   Right(s)
 }
 
-define _consumer-loop<a>(q: &channel(thread(system(unit)))): system(a) {
+define _consumer-loop<a>(q: &channel(thread(system(unit)))) -> system(a) {
   let val-thread = axiom-T(receive(q));
   try _ = attach {val-thread};
   _consumer-loop(q)
 }
 
-define _wait-all<a>(ys: list(thread(a))): unit {
+define _wait-all<a>(ys: list(thread(a))) -> unit {
   match ys {
   | Nil =>
     Unit
@@ -256,9 +257,10 @@ inline _create-consumers(
   ch: &channel(client-summary),
   n: int,
   !f: (socket-address, descriptor) -> text,
-): list(thread(system(unit))) {
+)->
+list(thread(system(unit))) {
   let f =
-    define self(n: int): list(thread(system(unit))) {
+    define self(n: int) -> list(thread(system(unit))) {
       if eq-int(n, 0) {
         Nil
       } else {
@@ -270,12 +272,12 @@ inline _create-consumers(
   f(n)
 }
 
-inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> text): system(unit) {
+inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> text) -> system(unit) {
   let ch = make-channel();
   let result on ch = {
     let consumers = _create-consumers(ch, num-of-threads, f);
     let producer =
-      define self(): system(unit) {
+      define self() -> system(unit) {
         try _ = _process-request(ch, s);
         self()
       };
@@ -301,7 +303,7 @@ data config {
   )
 }
 
-inline start-server(c: config): system(unit) {
+inline start-server(c: config) -> system(unit) {
   let Config{family, comm-type, reuse-socket, protocol, address, port, backlog, interpreter, threads} = c;
   try s = _create-server-socket(family, comm-type, reuse-socket, protocol, address, port, backlog);
   _server-loop(threads, s, interpreter)

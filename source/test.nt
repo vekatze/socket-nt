@@ -10,7 +10,7 @@ import {
   this.socket-type {SOCK_STREAM},
 }
 
-define main(): unit {
+define main() -> unit {
   let server-config =
     Config{
       family := AF_INET,
@@ -22,7 +22,7 @@ define main(): unit {
       backlog := 128,
       threads := 10,
       interpreter := {
-        function (address: socket-address, _: descriptor): text {
+        function (address: socket-address, _: descriptor) -> text {
           let Socket-Address{ip-address, port} = address;
           pin ip-address = ip-address;
           print("client: ");

@@ -8,7 +8,7 @@ data socket-type {
 | SOCK_RAW
 }
 
-define decode(t: socket-type): c-int {
+define decode(t: socket-type) -> c-int {
   match t {
   | SOCK_STREAM =>
     C-Int(1)
