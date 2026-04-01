@@ -7,8 +7,8 @@ import {
   core.file.descriptor {descriptor},
   core.memory {load-int16, load-int32, store-int, store-int16, store-int32, store-int8},
   core.pointer {shift},
+  core.string.io {write},
   core.system {report-system-error, system},
-  core.text.io {write},
   core.word,
   this.address-family {AF_INET, address-family},
   this.socket-type {socket-type},
@@ -91,12 +91,12 @@ define _create-socket(af: address-family, comm-type: socket-type, protocol: c-in
   }
 }
 
-define _inet-addr(address: &text) -> _in-addr-t {
+define _inet-addr(address: &string) -> _in-addr-t {
   pin addr = to-c-string(address);
   magic external inet_addr(magic cast(&c-string, pointer, addr))
 }
 
-define _bind-socket(af: address-family, s: descriptor, address: &text, port: int16) -> system(unit) {
+define _bind-socket(af: address-family, s: descriptor, address: &string, port: int16) -> system(unit) {
   introspect operating-system {
   | darwin =>
     match af {
@@ -161,7 +161,7 @@ define _listen-socket(s: descriptor, backlog: c-int) -> system(unit) {
 
 data socket-address {
 | Socket-Address(
-    ip-address: text,
+    ip-address: string,
     port: int16,
   )
 }
@@ -173,7 +173,7 @@ data client-summary {
   )
 }
 
-inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> text) -> system(a) {
+inline _consumer<a>(ch: &channel(client-summary), !request-interpreter: (socket-address, descriptor) -> string) -> system(a) {
   let f =
     define loop() -> system(a) {
       let summary = axiom-T(receive(ch));
@@ -220,7 +220,7 @@ define _create-server-socket(
   comm-type: socket-type,
   reuse-socket: bool,
   protocol: c-int,
-  address: &text,
+  address: &string,
   port: int16,
   connection-queue-size: c-int,
 ) -> system(descriptor) {
@@ -255,7 +255,7 @@ define _wait-all<a>(ys: list(thread(a))) -> unit {
 inline _create-consumers(
   ch: &channel(client-summary),
   n: int,
-  !f: (socket-address, descriptor) -> text,
+  !f: (socket-address, descriptor) -> string,
 ) -> list(thread(system(unit))) {
   let f =
     define self(n: int) -> list(thread(system(unit))) {
@@ -270,7 +270,7 @@ inline _create-consumers(
   f(n)
 }
 
-inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> text) -> system(unit) {
+inline _server-loop(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> string) -> system(unit) {
   let ch = make-channel();
   let result on ch = {
     let consumers = _create-consumers(ch, num-of-threads, f);
@@ -294,10 +294,10 @@ data config {
     reuse-socket: bool,
     protocol: c-int,
     port: int16,
-    address: &text,
+    address: &string,
     backlog: c-int,
     threads: int,
-    interpreter: (socket-address, descriptor) -> text,
+    interpreter: (socket-address, descriptor) -> string,
   )
 }
 
