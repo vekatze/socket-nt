@@ -9,6 +9,7 @@ import {
   core.pointer {shift},
   core.string.io {write},
   core.system {report-system-error, system},
+  core.thread {attach, detach},
   core.word,
   this.address-family {AF_INET, address-family},
   this.socket-type {socket-type},
@@ -238,7 +239,7 @@ define _create-server-socket(
 
 define _consumer-loop<a>(q: &channel(thread(system(unit)))) -> system(a) {
   let val-thread = axiom-T(receive(q));
-  try _ = attach {val-thread};
+  try _ = attach(val-thread);
   _consumer-loop(q)
 }
 
@@ -247,7 +248,7 @@ define _wait-all<a>(ys: list(thread(a))) -> unit {
   | Nil =>
     Unit
   | Cons(z, zs) =>
-    let _ = attach {z};
+    let _ = attach(z);
     _wait-all(zs)
   }
 }
@@ -262,7 +263,10 @@ inline _create-consumers(
       if eq-int(n, 0) {
         Nil
       } else {
-        let consumer = detach {_consumer(ch, f)};
+        let consumer =
+          detach(() => {
+            _consumer(ch, f)
+          });
         let consumers = self(sub-int(n, 1));
         Cons(consumer, consumers)
       }
