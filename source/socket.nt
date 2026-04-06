@@ -25,16 +25,16 @@ alias _in-addr-t {
 }
 
 foreign {
-  socket(c-int, c-int, c-int): c-int,
-  setsockopt(c-int, c-int, c-int, pointer, _socklen-t): c-int,
-  getsockopt(c-int, c-int, c-int, pointer, pointer): c-int,
-  inet_addr(pointer): _in-addr-t,
-  inet_ntop(c-int, pointer, pointer, _socklen-t): pointer,
-  bind(c-int, pointer, _socklen-t): c-int,
-  listen(c-int, c-int): c-int,
-  accept(c-int, pointer, pointer): c-int,
-  htons(int16): int16,
-  ntohs(int16): int16,
+  socket(c-int, c-int, c-int) -> c-int,
+  setsockopt(c-int, c-int, c-int, pointer, _socklen-t) -> c-int,
+  getsockopt(c-int, c-int, c-int, pointer, pointer) -> c-int,
+  inet_addr(pointer) -> _in-addr-t,
+  inet_ntop(c-int, pointer, pointer, _socklen-t) -> pointer,
+  bind(c-int, pointer, _socklen-t) -> c-int,
+  listen(c-int, c-int) -> c-int,
+  accept(c-int, pointer, pointer) -> c-int,
+  htons(int16) -> int16,
+  ntohs(int16) -> int16,
 }
 
 constant sockaddr-in-size: int8 {
