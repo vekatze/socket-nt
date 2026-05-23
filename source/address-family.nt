@@ -1,10 +1,3 @@
 data address-family {
 | AF_INET
 }
-
-define decode(af: address-family) -> int8 {
-  match af {
-  | AF_INET =>
-    2
-  }
-}

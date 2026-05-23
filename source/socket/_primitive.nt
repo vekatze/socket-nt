@@ -1,0 +1,166 @@
+import {
+  core.c-int {C-Int, c-int, from-c-int},
+  core.c-string {c-string, from-string},
+  core.file.descriptor {descriptor},
+  core.memory.unsafe {store-int, store-int16, store-int32, store-int8},
+  core.pointer {shift},
+  core.system {report-system-error, system},
+  core.word,
+  this.address-family {AF_INET, address-family},
+  this.socket-type {SOCK_DGRAM, SOCK_RAW, SOCK_STREAM, socket-type},
+}
+
+data socklen-t {
+| Socklen(int32)
+}
+
+alias _in-addr-t {
+  // unknown
+  int32
+}
+
+foreign {
+  socket(c-int, c-int, c-int) -> c-int,
+  setsockopt(c-int, c-int, c-int, pointer, socklen-t) -> c-int,
+  inet_addr(pointer) -> _in-addr-t,
+  bind(c-int, pointer, socklen-t) -> c-int,
+  listen(c-int, c-int) -> c-int,
+  htons(int16) -> int16,
+}
+
+constant sockaddr-in-size: int8 {
+  16
+}
+
+constant _SOL_SOCKET: c-int {
+  introspect operating-system {
+  | darwin =>
+    65535
+  | linux =>
+    1
+  }
+}
+
+constant _SO_REUSEADDR: c-int {
+  introspect operating-system {
+  | darwin =>
+    4
+  | linux =>
+    2
+  }
+}
+
+define address-family-code(af: address-family) -> int8 {
+  match af {
+  | AF_INET =>
+    2
+  }
+}
+
+define _socket-type-code(t: socket-type) -> c-int {
+  match t {
+  | SOCK_STREAM =>
+    C-Int(1)
+  | SOCK_DGRAM =>
+    C-Int(2)
+  | SOCK_RAW =>
+    C-Int(3)
+  }
+}
+
+define make-socket-reusable(s: descriptor) -> system(unit) {
+  let s = magic cast(descriptor, c-int, s);
+  let option-size = Socklen(trunc-int-int32(core.word.size));
+  let enable = magic alloca(int, 1);
+  store-int(1, enable);
+  let result = magic external setsockopt(s, _SOL_SOCKET, _SO_REUSEADDR, enable, option-size);
+  let so-reuse-port = 512;
+  let _ = magic external setsockopt(s, _SOL_SOCKET, so-reuse-port, enable, option-size);
+  if eq-int(from-c-int(result), 0) {
+    Right(Unit)
+  } else {
+    report-system-error()
+  }
+}
+
+define create-socket(af: address-family, comm-type: socket-type, protocol: c-int) -> system(descriptor) {
+  let d =
+    magic external socket(
+      C-Int(sext-int8-int32(address-family-code(af))),
+      _socket-type-code(comm-type),
+      protocol,
+    );
+  if lt-int(from-c-int(d), 0) {
+    report-system-error()
+  } else {
+    Right(magic cast(c-int, descriptor, d))
+  }
+}
+
+define _inet-addr(address: &string) -> _in-addr-t {
+  pin addr = from-string(address);
+  magic external inet_addr(magic cast(&c-string, pointer, addr))
+}
+
+define bind-socket(af: address-family, s: descriptor, address: &string, port: int16) -> system(unit) {
+  introspect operating-system {
+  | darwin =>
+    match af {
+    | AF_INET =>
+      let server-addr = magic alloca(int8, 16);
+      let port: int16 = magic external htons(port);
+      let in-addr = _inet-addr(address);
+      store-int8(sockaddr-in-size, server-addr);
+      store-int8(address-family-code(af), shift(server-addr, 1));
+      store-int16(port, shift(server-addr, 2));
+      store-int32(in-addr, shift(server-addr, 4));
+      let result =
+        magic external bind(
+          magic cast(descriptor, c-int, s),
+          server-addr,
+          Socklen(zext-int8-int32(sockaddr-in-size)),
+        );
+      if lt-int(from-c-int(result), 0) {
+        report-system-error()
+      } else {
+        Right(Unit)
+      }
+    }
+  | linux =>
+    match af {
+    | AF_INET =>
+      // suppress "Imported but not used: `store-int8`"
+      let _ = store-int8;
+      let server-addr = magic alloca(int8, 16);
+      let port: int16 = magic external htons(port);
+      let in-addr = _inet-addr(address);
+      store-int16(zext-int8-int16(address-family-code(af)), shift(server-addr, 0));
+      store-int16(port, shift(server-addr, 2));
+      store-int32(in-addr, shift(server-addr, 4));
+      let result =
+        magic external bind(
+          magic cast(descriptor, c-int, s),
+          server-addr,
+          Socklen(zext-int8-int32(sockaddr-in-size)),
+        );
+      if lt-int(from-c-int(result), 0) {
+        report-system-error()
+      } else {
+        Right(Unit)
+      }
+    }
+  }
+}
+
+define listen-socket(s: descriptor, backlog: c-int) -> system(unit) {
+  let result =
+    magic external listen(
+      magic cast(descriptor, c-int, s),
+      backlog,
+    );
+  if lt-int(from-c-int(result), 0) {
+    report-system-error()
+  } else {
+    Right(Unit)
+  }
+}

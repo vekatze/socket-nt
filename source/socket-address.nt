@@ -1,0 +1,6 @@
+data socket-address {
+| Socket-Address(
+    ip-address: string,
+    port: int16,
+  )
+}

@@ -1,0 +1,153 @@
+import {
+  core.box {axiom-T},
+  core.c-int {C-Int, c-int, from-c-int},
+  core.c-string {c-string, to-string},
+  core.file.descriptor {close, descriptor},
+  core.memory.unsafe {load-int16, load-int32, store-int32},
+  core.pointer {shift},
+  core.string.io {write},
+  core.sync.channel {channel, make-channel, receive, send},
+  core.sync.thread {join, spawn, thread},
+  core.system {report-system-error, system},
+  this.address-family {AF_INET, address-family},
+  this.socket-address {Socket-Address, socket-address},
+  this.socket-type {socket-type},
+  this.socket._primitive {
+    Socklen,
+    address-family-code,
+    bind-socket,
+    create-socket,
+    listen-socket,
+    make-socket-reusable,
+    sockaddr-in-size,
+    socklen-t,
+  },
+}
+
+foreign {
+  accept(c-int, pointer, pointer) -> c-int,
+  inet_ntop(c-int, pointer, pointer, socklen-t) -> pointer,
+  ntohs(int16) -> int16,
+}
+
+constant _INET_ADDRSTRLEN: socklen-t {
+  Socklen(16)
+}
+
+data _client-summary {
+| _Client-Summary(
+    fd: descriptor,
+    address: socket-address,
+  )
+}
+
+inline _consumer<a>(ch: &channel(_client-summary), !request-interpreter: (socket-address, descriptor) -> string) -> system(a) {
+  let f =
+    define loop() -> system(a) {
+      let summary = axiom-T(receive(ch));
+      let _Client-Summary{fd, address} = summary;
+      let response = request-interpreter(address, fd);
+      let _ on response = write(fd, response);
+      try _ = close(fd);
+      let _ = response;
+      loop()
+    };
+  f()
+}
+
+inline _process-request(ch: &channel(_client-summary), s: descriptor) -> system(unit) {
+  let client-addr = magic alloca(int8, 16);
+  let address = magic alloca(int8, 4);
+  store-int32(zext-int8-int32(sockaddr-in-size), address);
+  let client-fd = magic external accept(magic cast(descriptor, c-int, s), client-addr, address);
+  let client-len = load-int32(address);
+  let _ = client-len;
+  if lt-int(from-c-int(client-fd), 0) {
+    report-system-error()
+  } else {
+    let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int8, 16));
+    let _ =
+      magic external inet_ntop(
+        C-Int(sext-int8-int32(address-family-code(AF_INET))),
+        shift(client-addr, 4),
+        magic cast(&c-string, pointer, client-ip-ptr),
+        _INET_ADDRSTRLEN,
+      );
+    let client-ip-address = to-string(client-ip-ptr);
+    let client-port = load-int16(shift(client-addr, 2));
+    let client-port: int16 = magic external ntohs(client-port);
+    let fd = magic cast(c-int, descriptor, client-fd);
+    let summary = _Client-Summary(fd, Socket-Address(client-ip-address, client-port));
+    send(ch, lift {summary});
+    Right(Unit)
+  }
+}
+
+define create-server-socket(
+  af: address-family,
+  comm-type: socket-type,
+  reuse-socket: bool,
+  protocol: c-int,
+  address: &string,
+  port: int16,
+  connection-queue-size: c-int,
+) -> system(descriptor) {
+  try s = create-socket(af, comm-type, protocol);
+  try _ =
+    if reuse-socket {
+      make-socket-reusable(s)
+    } else {
+      Right(Unit)
+    };
+  try _ = bind-socket(af, s, address, port);
+  try _ = listen-socket(s, connection-queue-size);
+  Right(s)
+}
+
+define _wait-all<a>(ys: list(thread(a))) -> unit {
+  match ys {
+  | Nil =>
+    Unit
+  | Cons(z, zs) =>
+    let _ = join(z);
+    _wait-all(zs)
+  }
+}
+
+inline _create-consumers(
+  ch: &channel(_client-summary),
+  n: int,
+  !f: (socket-address, descriptor) -> string,
+) -> list(thread(system(unit))) {
+  let f =
+    define self(n: int) -> list(thread(system(unit))) {
+      if eq-int(n, 0) {
+        Nil
+      } else {
+        let c =
+          spawn(() => {
+            _consumer(ch, f)
+          });
+        let consumers = self(sub-int(n, 1));
+        Cons(c, consumers)
+      }
+    };
+  f(n)
+}
+
+inline run(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> string) -> system(unit) {
+  let ch = make-channel();
+  let result on ch = {
+    let consumers = _create-consumers(ch, num-of-threads, f);
+    let producer =
+      define self() -> system(unit) {
+        try _ = _process-request(ch, s);
+        self()
+      };
+    try _ = producer();
+    // unreachable
+    Right(_wait-all(consumers))
+  };
+  let _ = ch;
+  result
+}

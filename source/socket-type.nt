@@ -1,20 +1,5 @@
-import {
-  core.c-int {C-Int, c-int},
-}
-
 data socket-type {
 | SOCK_STREAM
 | SOCK_DGRAM
 | SOCK_RAW
-}
-
-define decode(t: socket-type) -> c-int {
-  match t {
-  | SOCK_STREAM =>
-    C-Int(1)
-  | SOCK_DGRAM =>
-    C-Int(2)
-  | SOCK_RAW =>
-    C-Int(3)
-  }
 }
