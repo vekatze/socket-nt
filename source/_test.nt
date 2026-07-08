@@ -1,13 +1,13 @@
 import {
-  core.file.descriptor {descriptor},
-  core.int.io {print-int-line},
-  core.int.show {show-int},
-  core.string {byte-length, format},
-  core.system {get-error-message},
-  this.address-family {AF_INET},
-  this.socket {Config, start-server},
-  this.socket-address {Socket-Address, socket-address},
-  this.socket-type {SOCK_STREAM},
+  core::file.descriptor {descriptor},
+  core::int.io {print-int-line},
+  core::int.show {show-int},
+  core::string {byte-length, format},
+  core::system {get-error-message},
+  address-family {AF_INET},
+  socket {Config, start-server},
+  socket-address {Socket-Address, socket-address},
+  socket-type {SOCK_STREAM},
 }
 
 define main() -> unit {
@@ -31,7 +31,7 @@ define main() -> unit {
           print-int-line(magic cast(_, _, port));
           let body = *"hello";
           let body-len on body = byte-length(body);
-          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", List[show-int(body-len), body])
+          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", List::[show-int(body-len), body])
         }
       },
     };

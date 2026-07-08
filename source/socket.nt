@@ -1,11 +1,11 @@
 import {
-  core.c-int {c-int},
-  core.file.descriptor {descriptor},
-  core.system {system},
-  this.address-family {address-family},
-  this.socket-address {socket-address},
-  this.socket-type {socket-type},
-  this.socket._server {create-server-socket, run},
+  core::c-int {c-int},
+  core::file.descriptor {descriptor},
+  core::system {system},
+  address-family {address-family},
+  socket-address {socket-address},
+  socket-type {socket-type},
+  socket._server {create-server-socket, run},
 }
 
 data config {

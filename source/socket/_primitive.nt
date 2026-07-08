@@ -1,13 +1,13 @@
 import {
-  core.c-int {C-Int, c-int, from-c-int},
-  core.c-string {c-string, from-string},
-  core.file.descriptor {descriptor},
-  core.memory.unsafe {store-int, store-int16, store-int32, store-int8},
-  core.pointer {shift},
-  core.system {report-system-error, system},
-  core.word,
-  this.address-family {AF_INET, address-family},
-  this.socket-type {SOCK_DGRAM, SOCK_RAW, SOCK_STREAM, socket-type},
+  core::c-int {C-Int, c-int, from-c-int},
+  core::c-string {c-string, from-string},
+  core::file.descriptor {descriptor},
+  core::memory.unsafe {store-int, store-int16, store-int32, store-int8},
+  core::pointer {shift},
+  core::system {report-system-error, system},
+  core::word,
+  address-family {AF_INET, address-family},
+  socket-type {SOCK_DGRAM, SOCK_RAW, SOCK_STREAM, socket-type},
 }
 
 data socklen-t {
@@ -33,7 +33,7 @@ constant sockaddr-in-size: int8 {
 }
 
 constant _SOL_SOCKET: c-int {
-  introspect operating-system {
+  introspect target-os {
   | darwin =>
     65535
   | linux =>
@@ -42,7 +42,7 @@ constant _SOL_SOCKET: c-int {
 }
 
 constant _SO_REUSEADDR: c-int {
-  introspect operating-system {
+  introspect target-os {
   | darwin =>
     4
   | linux =>
@@ -70,7 +70,7 @@ define _socket-type-code(t: socket-type) -> c-int {
 
 define make-socket-reusable(s: descriptor) -> system(unit) {
   let s = magic cast(descriptor, c-int, s);
-  let option-size = Socklen(trunc-int-int32(core.word.size));
+  let option-size = Socklen(trunc-int-int32(core::word.size));
   let enable = magic alloca(int, 1);
   store-int(1, enable);
   let result = magic external setsockopt(s, _SOL_SOCKET, _SO_REUSEADDR, enable, option-size);
@@ -103,7 +103,7 @@ define _inet-addr(address: &string) -> _in-addr-t {
 }
 
 define bind-socket(af: address-family, s: descriptor, address: &string, port: int16) -> system(unit) {
-  introspect operating-system {
+  introspect target-os {
   | darwin =>
     match af {
     | AF_INET =>
