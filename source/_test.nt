@@ -4,10 +4,10 @@ import {
   core::int.show {show-int},
   core::string {byte-length, format},
   core::system {get-error-message},
-  address-family {AF_INET},
-  socket {Config, start-server},
-  socket-address {Socket-Address, socket-address},
-  socket-type {SOCK_STREAM},
+  this::address-family {AF_INET},
+  this::socket {Config, start-server},
+  this::socket-address {Socket-Address, socket-address},
+  this::socket-type {SOCK_STREAM},
 }
 
 define main() -> unit {

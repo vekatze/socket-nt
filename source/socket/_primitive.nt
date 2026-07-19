@@ -6,8 +6,8 @@ import {
   core::pointer {shift},
   core::system {report-system-error, system},
   core::word,
-  address-family {AF_INET, address-family},
-  socket-type {SOCK_DGRAM, SOCK_RAW, SOCK_STREAM, socket-type},
+  this::address-family {AF_INET, address-family},
+  this::socket-type {SOCK_DGRAM, SOCK_RAW, SOCK_STREAM, socket-type},
 }
 
 data socklen-t {
@@ -70,7 +70,7 @@ define _socket-type-code(t: socket-type) -> c-int {
 
 define make-socket-reusable(s: descriptor) -> system(unit) {
   let s = magic cast(descriptor, c-int, s);
-  let option-size = Socklen(trunc-int-int32(core::word.size));
+  let option-size = Socklen(trunc-int-int32(core::word::size));
   let enable = magic alloca(int, 1);
   store-int(1, enable);
   let result = magic external setsockopt(s, _SOL_SOCKET, _SO_REUSEADDR, enable, option-size);

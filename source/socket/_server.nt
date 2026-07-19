@@ -9,10 +9,10 @@ import {
   core::sync.channel {channel, make-channel, receive, send},
   core::sync.thread {join, spawn, thread},
   core::system {report-system-error, system},
-  address-family {AF_INET, address-family},
-  socket-address {Socket-Address, socket-address},
-  socket-type {socket-type},
-  socket._primitive {
+  this::address-family {AF_INET, address-family},
+  this::socket-address {Socket-Address, socket-address},
+  this::socket-type {socket-type},
+  this::socket._primitive {
     Socklen,
     address-family-code,
     bind-socket,
