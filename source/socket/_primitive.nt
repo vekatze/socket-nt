@@ -79,7 +79,7 @@ define make-socket-reusable(s: descriptor) -> system(unit) {
   if eq-int(from-c-int(result), 0) {
     Right(Unit)
   } else {
-    report-system-error()
+    report-system-error@()
   }
 }
 
@@ -91,7 +91,7 @@ define create-socket(af: address-family, comm-type: socket-type, protocol: c-int
       protocol,
     );
   if lt-int(from-c-int(d), 0) {
-    report-system-error()
+    report-system-error@()
   } else {
     Right(magic cast(c-int, descriptor, d))
   }
@@ -121,7 +121,7 @@ define bind-socket(af: address-family, s: descriptor, address: &string, port: in
           Socklen(zext-int8-int32(sockaddr-in-size)),
         );
       if lt-int(from-c-int(result), 0) {
-        report-system-error()
+        report-system-error@()
       } else {
         Right(Unit)
       }
@@ -144,7 +144,7 @@ define bind-socket(af: address-family, s: descriptor, address: &string, port: in
           Socklen(zext-int8-int32(sockaddr-in-size)),
         );
       if lt-int(from-c-int(result), 0) {
-        report-system-error()
+        report-system-error@()
       } else {
         Right(Unit)
       }
@@ -159,7 +159,7 @@ define listen-socket(s: descriptor, backlog: c-int) -> system(unit) {
       backlog,
     );
   if lt-int(from-c-int(result), 0) {
-    report-system-error()
+    report-system-error@()
   } else {
     Right(Unit)
   }

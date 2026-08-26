@@ -47,8 +47,8 @@ inline _consumer<a>(ch: &channel(_client-summary), !request-interpreter: (socket
       let summary = axiom-T(receive(ch));
       let _Client-Summary{fd, address} = summary;
       let response = request-interpreter(address, fd);
-      let _ on response = write(fd, response);
-      try _ = close(fd);
+      let _ on response = write@(fd, response);
+      try _ = close@(fd);
       let _ = response;
       loop()
     };
@@ -63,7 +63,7 @@ inline _process-request(ch: &channel(_client-summary), s: descriptor) -> system(
   let client-len = load-int32(address);
   let _ = client-len;
   if lt-int(from-c-int(client-fd), 0) {
-    report-system-error()
+    report-system-error@()
   } else {
     let client-ip-ptr: &c-string = magic cast(pointer, &c-string, magic alloca(int8, 16));
     let _ =
