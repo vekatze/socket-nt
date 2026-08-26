@@ -1,11 +1,11 @@
 # socket
 
-`socket-nt` is a thin layer over network sockets.
+`socket` is a thin layer over network sockets.
 
 ## Installation
 
 ```sh
-neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0-3-56.tar.zst
+neut get socket https://github.com/vekatze/socket-nt/raw/main/archive/0.4.0.tar.zst
 ```
 
 ## Types
@@ -54,16 +54,16 @@ inline start-server(c: config) -> system(unit)
 
 ```neut
 import {
-  core.file.descriptor {descriptor},
-  core.int.io {print-int-line},
-  core.int.show {show-int},
-  core.string {byte-length, format},
-  core.string.io {print-line},
-  core.system {get-error-message},
-  this.address-family {AF_INET},
-  this.socket {Config, start-server},
-  this.socket-address {Socket-Address, socket-address},
-  this.socket-type {SOCK_STREAM},
+  core::file.descriptor {descriptor},
+  core::int.io {print-int-line},
+  core::int.show {show-int},
+  core::string {byte-length, format},
+  core::string.io {print-line},
+  core::system {get-error-message},
+  this::address-family {AF_INET},
+  this::socket {Config, start-server},
+  this::socket-address {Socket-Address, socket-address},
+  this::socket-type {SOCK_STREAM},
 }
 
 define main() -> unit {
@@ -87,7 +87,7 @@ define main() -> unit {
           print-int-line(magic cast(_, _, port));
           let body = *"hello";
           let body-len on body = byte-length(body);
-          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", List[show-int(body-len), body])
+          format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", List::[show-int(body-len), body])
         }
       },
     };
