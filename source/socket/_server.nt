@@ -42,17 +42,16 @@ data _client-summary {
 }
 
 inline _consumer<a>(ch: &channel(_client-summary), !request-interpreter: (socket-address, descriptor) -> string) -> system(a) {
-  let f =
-    define loop() -> system(a) {
-      let summary = axiom-T(receive(ch));
-      let _Client-Summary{fd, address} = summary;
-      let response = request-interpreter(address, fd);
-      let _ on response = write@(fd, response);
-      try _ = close@(fd);
-      let _ = response;
-      loop()
-    };
-  f()
+  define go() -> system(a) {
+    let summary = axiom-T(receive(ch));
+    let _Client-Summary{fd, address} = summary;
+    let response = request-interpreter(address, fd);
+    let _ on response = write@(fd, response);
+    try _ = close@(fd);
+    let _ = response;
+    go()
+  };
+  go()
 }
 
 inline _process-request(ch: &channel(_client-summary), s: descriptor) -> system(unit) {
@@ -119,31 +118,29 @@ inline _create-consumers(
   n: int,
   !f: (socket-address, descriptor) -> string,
 ) -> list(thread(system(unit))) {
-  let f =
-    define self(n: int) -> list(thread(system(unit))) {
-      if eq-int(n, 0) {
-        Nil
-      } else {
-        let c =
-          spawn(() => {
-            _consumer(ch, f)
-          });
-        let consumers = self(sub-int(n, 1));
-        Cons(c, consumers)
-      }
-    };
-  f(n)
+  define go(n: int) -> list(thread(system(unit))) {
+    if eq-int(n, 0) {
+      Nil
+    } else {
+      let c =
+        spawn(() => {
+          _consumer(ch, f)
+        });
+      let consumers = go(sub-int(n, 1));
+      Cons(c, consumers)
+    }
+  };
+  go(n)
 }
 
 inline run(num-of-threads: int, s: descriptor, f: (socket-address, descriptor) -> string) -> system(unit) {
   let ch = make-channel();
   let result on ch = {
     let consumers = _create-consumers(ch, num-of-threads, f);
-    let producer =
-      define self() -> system(unit) {
-        try _ = _process-request(ch, s);
-        self()
-      };
+    define producer() -> system(unit) {
+      try _ = _process-request(ch, s);
+      producer()
+    };
     try _ = producer();
     // unreachable
     Right(_wait-all(consumers))
