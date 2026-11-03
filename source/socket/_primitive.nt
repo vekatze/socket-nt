@@ -2,7 +2,7 @@ import {
   core::c-int {C-Int, c-int, from-c-int},
   core::c-string {c-string, from-string},
   core::file.descriptor {descriptor},
-  core::memory.unsafe {store-int, store-int16, store-int32, store-int8},
+  core::memory.unsafe {load-int8, store-int, store-int16, store-int32, store-int8},
   core::pointer {shift},
   core::system {report-system-error, system},
   core::word,
@@ -25,7 +25,6 @@ foreign {
   inet_addr(pointer) -> _in-addr-t,
   bind(c-int, pointer, socklen-t) -> c-int,
   listen(c-int, c-int) -> c-int,
-  htons(int16) -> int16,
 }
 
 constant sockaddr-in-size: int8 {
@@ -102,17 +101,27 @@ define _inet-addr(address: &string) -> _in-addr-t {
   magic external inet_addr(magic cast(&c-string, pointer, addr))
 }
 
+define store-port(port: int16, p: pointer) -> unit {
+  store-int8(trunc-int16-int8(lshr-int16(port, 8)), p);
+  store-int8(trunc-int16-int8(port), shift(p, 1))
+}
+
+define load-port(p: pointer) -> int16 {
+  let high = zext-int8-int16(load-int8(p));
+  let low = zext-int8-int16(load-int8(shift(p, 1)));
+  or-int16(shl-int16(high, 8), low)
+}
+
 define bind-socket(af: address-family, s: descriptor, address: &string, port: int16) -> system(unit) {
   introspect target-os {
   | darwin =>
     match af {
     | AF_INET =>
       let server-addr = magic alloca(int8, 16);
-      let port: int16 = magic external htons(port);
       let in-addr = _inet-addr(address);
       store-int8(sockaddr-in-size, server-addr);
       store-int8(address-family-code(af), shift(server-addr, 1));
-      store-int16(port, shift(server-addr, 2));
+      store-port(port, shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
         magic external bind(
@@ -129,13 +138,10 @@ define bind-socket(af: address-family, s: descriptor, address: &string, port: in
   | linux =>
     match af {
     | AF_INET =>
-      // suppress "Imported but not used: `store-int8`"
-      let _ = store-int8;
       let server-addr = magic alloca(int8, 16);
-      let port: int16 = magic external htons(port);
       let in-addr = _inet-addr(address);
       store-int16(zext-int8-int16(address-family-code(af)), shift(server-addr, 0));
-      store-int16(port, shift(server-addr, 2));
+      store-port(port, shift(server-addr, 2));
       store-int32(in-addr, shift(server-addr, 4));
       let result =
         magic external bind(
